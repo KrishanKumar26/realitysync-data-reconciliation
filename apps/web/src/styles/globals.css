@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   RealitySync design tokens
+
+   Dark-first, because the product is an operational control surface that people
+   watch for long periods. Light mode is a first-class peer, not an afterthought.
+
+   Confidence colour mapping is fixed product-wide and defined once here so that
+   every future surface — badge, gauge, chart, table cell — reads the same:
+     >= 90  cyan     70-89  blue     50-69  amber     < 50  red
+   No component may invent its own confidence colours.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* Typeface stacks. System stacks keep first paint fast and avoid shipping
+     webfonts before there is a reason to. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, "Cascadia Mono",
+    "Roboto Mono", monospace;
+
+  /* Brand accents */
+  --color-accent-cyan: oklch(0.78 0.13 205);
+  --color-accent-violet: oklch(0.72 0.15 295);
+
+  /* Confidence scale */
+  --color-confidence-high: oklch(0.78 0.13 205);
+  --color-confidence-good: oklch(0.68 0.14 250);
+  --color-confidence-fair: oklch(0.78 0.14 75);
+  --color-confidence-low: oklch(0.65 0.19 25);
+
+  /* Status */
+  --color-status-healthy: oklch(0.75 0.15 155);
+  --color-status-degraded: oklch(0.78 0.14 75);
+  --color-status-down: oklch(0.65 0.19 25);
+  --color-status-unknown: oklch(0.62 0.02 265);
+
+  --radius-panel: 0.75rem;
+}
+
+/* --- Semantic surface tokens: light ------------------------------------- */
+:root {
+  --background: oklch(0.99 0.002 265);
+  --foreground: oklch(0.21 0.01 265);
+  --muted: oklch(0.96 0.004 265);
+  --muted-foreground: oklch(0.52 0.015 265);
+  --panel: oklch(1 0 0);
+  --panel-foreground: oklch(0.21 0.01 265);
+  --border: oklch(0.91 0.005 265);
+  --border-strong: oklch(0.85 0.008 265);
+  --ring: oklch(0.65 0.11 205);
+  --overlay: oklch(0.21 0.01 265 / 0.4);
+}
+
+/* --- Semantic surface tokens: dark -------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(0.16 0.008 265);
+    --foreground: oklch(0.95 0.004 265);
+    --muted: oklch(0.22 0.01 265);
+    --muted-foreground: oklch(0.68 0.015 265);
+    --panel: oklch(0.19 0.009 265);
+    --panel-foreground: oklch(0.95 0.004 265);
+    --border: oklch(0.28 0.012 265);
+    --border-strong: oklch(0.36 0.014 265);
+    --ring: oklch(0.72 0.12 205);
+    --overlay: oklch(0.1 0.006 265 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: oklch(0.16 0.008 265);
+  --foreground: oklch(0.95 0.004 265);
+  --muted: oklch(0.22 0.01 265);
+  --muted-foreground: oklch(0.68 0.015 265);
+  --panel: oklch(0.19 0.009 265);
+  --panel-foreground: oklch(0.95 0.004 265);
+  --border: oklch(0.28 0.012 265);
+  --border-strong: oklch(0.36 0.014 265);
+  --ring: oklch(0.72 0.12 205);
+  --overlay: oklch(0.1 0.006 265 / 0.6);
+}
+
+/* Expose the semantic tokens as Tailwind colour utilities. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numbers, identifiers and timestamps are monospaced product-wide so that
+     values line up in columns and are unambiguous to read. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--color-accent-cyan) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer utilities {
+  /* Subtle elevated surface used by panels and the app chrome. */
+  .surface {
+    background-color: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 25%,
+      color-mix(in oklch, var(--muted) 60%, var(--border)) 37%,
+      var(--muted) 63%
+    );
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+}

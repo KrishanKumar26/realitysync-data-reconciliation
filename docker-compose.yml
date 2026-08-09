@@ -1,0 +1,129 @@
+# ---------------------------------------------------------------------------
+# RealitySync — local development stack
+#
+#   cp .env.example .env
+#   docker compose up
+#
+# Services start in dependency order and wait on health, so `docker compose up`
+# reaching a healthy state means the whole foundation is genuinely working.
+# ---------------------------------------------------------------------------
+
+name: realitysync
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: realitysync-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-realitysync}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-locally}
+      POSTGRES_DB: ${POSTGRES_DB:-realitysync}
+      # Deterministic collation, so ordering is identical across machines.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-realitysync} -d ${POSTGRES_DB:-realitysync}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: realitysync-redis
+    restart: unless-stopped
+    # No persistence: Redis holds nothing authoritative, so an empty restart is
+    # always safe (Phase 0 §20).
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  migrate:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: realitysync-migrate
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-realitysync}:${POSTGRES_PASSWORD:-change-me-locally}@postgres:5432/${POSTGRES_DB:-realitysync}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: realitysync-api
+    restart: unless-stopped
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-realitysync}:${POSTGRES_PASSWORD:-change-me-locally}@postgres:5432/${POSTGRES_DB:-realitysync}
+      REDIS_URL: redis://redis:6379/0
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      COOKIE_NAME: ${COOKIE_NAME:-rs_session}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-change-me}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Live reload during development. Bind-mounting source only; the
+      # installed dependencies stay in the image.
+      - ./apps/api/app:/srv/api/app:ro
+      - ./apps/api/alembic:/srv/api/alembic:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: development
+    container_name: realitysync-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_ENVIRONMENT: ${NEXT_PUBLIC_ENVIRONMENT:-development}
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./apps/web/src:/srv/web/src
+      - ./apps/web/public:/srv/web/public
+      # Keep container-installed node_modules and build cache out of the host.
+      - web_node_modules:/srv/web/node_modules
+      - web_next_cache:/srv/web/.next
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  web_node_modules:
+  web_next_cache:

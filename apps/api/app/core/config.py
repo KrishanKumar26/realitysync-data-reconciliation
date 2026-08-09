@@ -1,0 +1,129 @@
+"""Application configuration.
+
+All configuration is environment-driven (Phase 0 §24). Nothing here has a
+production-safe default: secrets must be supplied by the environment, and the
+application refuses to start in production if they are missing.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Annotated, Literal
+
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+Environment = Literal["development", "test", "staging", "production"]
+
+
+class Settings(BaseSettings):
+    """Environment-backed application settings."""
+
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../../.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    # --- Identity ---------------------------------------------------------
+    app_name: str = "RealitySync API"
+    api_version: str = "0.1.0"
+    environment: Environment = "development"
+    log_level: str = "INFO"
+
+    # --- Datastores -------------------------------------------------------
+    # SQLAlchemy async URL. psycopg3 is the driver for both the application
+    # database and (later) the PostgreSQL connector, so there is one driver
+    # to reason about.
+    database_url: str = "postgresql+psycopg://realitysync:realitysync@localhost:5432/realitysync"
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
+    database_pool_recycle_seconds: int = 1800
+    database_connect_timeout_seconds: int = 5
+
+    redis_url: str = "redis://localhost:6379/0"
+    redis_connect_timeout_seconds: int = 3
+
+    # --- Public URLs ------------------------------------------------------
+    api_base_url: str = "http://localhost:8000"
+    web_base_url: str = "http://localhost:3000"
+
+    # --- CORS -------------------------------------------------------------
+    # Explicit origin allowlist. "*" is rejected: the API uses credentialed
+    # requests, and wildcard + credentials is both invalid and unsafe.
+    #
+    # NoDecode suppresses pydantic-settings' default JSON decoding for complex
+    # types. Without it, a plain `CORS_ORIGINS=http://localhost:3000` line in a
+    # .env file raises before _split_cors_origins ever runs, because the raw
+    # value is not valid JSON.
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
+
+    # --- Cookies ----------------------------------------------------------
+    # Environment-driven so the staging (cross-site) and production
+    # (same-site, shared parent domain) configurations differ only by config.
+    # No authentication is implemented in Phase 1; these settle the contract.
+    cookie_name: str = "rs_session"
+    cookie_domain: str | None = None
+    cookie_secure: bool = False
+    cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    # --- Secrets ----------------------------------------------------------
+    # Placeholder default; _enforce_production_hardening rejects it in production.
+    secret_key: str = "dev-only-insecure-change-me"  # noqa: S105
+
+    # --- Health -----------------------------------------------------------
+    readiness_timeout_seconds: float = 3.0
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, value: object) -> object:
+        """Accept a comma-separated string from the environment."""
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("cors_origins")
+    @classmethod
+    def _reject_wildcard_origin(cls, value: list[str]) -> list[str]:
+        if "*" in value:
+            raise ValueError(
+                "CORS_ORIGINS must be an explicit allowlist; '*' is not permitted "
+                "because the API uses credentialed requests."
+            )
+        return value
+
+    @field_validator("log_level")
+    @classmethod
+    def _validate_log_level(cls, value: str) -> str:
+        allowed = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
+        upper = value.upper()
+        if upper not in allowed:
+            raise ValueError(f"LOG_LEVEL must be one of {sorted(allowed)}")
+        return upper
+
+    @model_validator(mode="after")
+    def _enforce_production_hardening(self) -> Settings:
+        """Fail fast rather than run production with development defaults."""
+        if self.environment == "production":
+            if self.secret_key == "dev-only-insecure-change-me":  # noqa: S105
+                raise ValueError("SECRET_KEY must be set explicitly in production")
+            if not self.cookie_secure:
+                raise ValueError("COOKIE_SECURE must be true in production")
+            if any(origin.startswith("http://") for origin in self.cors_origins):
+                raise ValueError("CORS_ORIGINS must use https:// in production")
+        if self.cookie_samesite == "none" and not self.cookie_secure:
+            raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment == "production"
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the process-wide settings singleton."""
+    return Settings()
