@@ -62,7 +62,11 @@ export function stubApi(routes: Record<string, StubRoute | (() => StubRoute)>): 
         body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
       });
 
-      const key = Object.keys(routes).find((path) => url.endsWith(path));
+      // Match on the path only. Routes carry query strings (?status=open,
+      // ?axis=knowledge) that are part of the request, not part of which
+      // endpoint is being called.
+      const path = url.split("?")[0] ?? url;
+      const key = Object.keys(routes).find((route) => path.endsWith(route));
       if (key === undefined) {
         throw new Error(`No stub registered for ${method} ${url}`);
       }

@@ -69,7 +69,10 @@ These diverge whenever a late observation corrects the past. A single-axis model
 can answer one question or the other, never both — which is why the bitemporal
 structure is present from the start rather than retrofitted.
 
-Status: **Phase 5.** No temporal tables exist yet.
+Status: **implemented in Phase 5.** No temporal *tables* were needed — both
+axes already live on every observation, and the timeline reconstructs from
+them. `axis=event` answers "what was true at T"; `axis=knowledge` answers "what
+did we know at T". See [phase-5-conflicts-and-timeline.md](phase-5-conflicts-and-timeline.md).
 
 ---
 
@@ -137,8 +140,11 @@ that need them.
 | Credential encryption   | Implemented — AES-256-GCM, row-bound, rotatable            |
 | Observation ingestion   | Implemented — normalised, fingerprinted, idempotent        |
 | Sync runs               | Implemented — advisory-locked, full lifecycle recorded     |
-| Reality Engine          | Not started — Phase 4                                      |
-| Conflict engine         | Not started — Phase 5                                      |
+
+| Reality Engine          | Structure implemented; scoring blocked on Phase 0 spec      |
+| Entity resolution       | Implemented — declared mappings, never inferred (Phase 5)   |
+| Conflict engine         | Detection implemented; grading blocked on Phase 0 spec      |
+| Timeline (bitemporal)   | Implemented — event vs knowledge axis (Phase 5)             |
 | AI investigation        | Not started — Phase 8                                      |
 
 ## Connectors

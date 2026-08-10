@@ -32,6 +32,7 @@ from app.engine.conflicts import (
     detect_source_disagreement,
     detect_value_conflict,
 )
+from app.engine.detection import DetectionResult, detect_without_scoring
 from app.engine.selection import (
     build_candidates,
     latest_per_source,
@@ -66,6 +67,12 @@ class CalculationBlocked:
     detail: str
     outstanding: tuple[tuple[str, str], ...] = MISSING_SPECIFICATIONS
 
+    #: What could still be established without the scoring formula: which
+    #: distinct values exist, which sources assert each, and whether they
+    #: disagree. Phase 5 runs on this. None only when detection itself could
+    #: not run — no observations, or none eligible.
+    detection: DetectionResult | None = None
+
     def as_dict(self) -> dict[str, object]:
         return {
             "blocked": True,
@@ -75,6 +82,10 @@ class CalculationBlocked:
             "missing_specifications": [
                 {"name": name, "description": description} for name, description in self.outstanding
             ],
+            # Scoring being blocked does not mean nothing is known. These two
+            # say what the evidence still shows.
+            "detection_available": self.detection is not None,
+            "disagreement_detected": bool(self.detection and self.detection.has_disagreement),
         }
 
 
@@ -126,7 +137,22 @@ def calculate(
             specification.quality(o.quality, o.validation_passed) for o in eligible
         )
     except SpecificationUnavailableError as exc:
-        return CalculationBlocked(attribute=attribute, missing=exc.missing, detail=str(exc))
+        # Scoring is blocked, but *detecting disagreement* is not: whether two
+        # sources assert different values is a categorical fact about the
+        # evidence and needs no formula. Phase 5 depends on that distinction —
+        # "the warehouse says 42 and the ERP says 57" is useful and true, while
+        # "which is right, and how sure are we" is precisely what is missing.
+        return CalculationBlocked(
+            attribute=attribute,
+            missing=exc.missing,
+            detail=str(exc),
+            detection=detect_without_scoring(
+                attribute=attribute,
+                eligible=eligible,
+                excluded=(*superseded, *invalid),
+                specification=specification,
+            ),
+        )
 
     # 4. Group into candidates. The returned order is the ranking, and it is
     #    total — see selection._candidate_sort_key.
