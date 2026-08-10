@@ -123,10 +123,21 @@ that need them.
 | Audit trail             | Implemented — append-only, nullable tenant                 |
 | Frontend auth shell     | Implemented — sign-in, org selector, sign-out, states      |
 | Rate limiting           | Seam only — Redis implementation in a later phase          |
-| Connectors              | Not started — Phase 3                                      |
+| Connector interface     | Implemented — DataConnector, types, registry (Phase 3)     |
+| PostgreSQL connector    | Implemented — TLS-only, read-only, catalog discovery       |
+| Credential encryption   | Implemented — AES-256-GCM, row-bound, rotatable            |
+| Observation ingestion   | Implemented — normalised, fingerprinted, idempotent        |
+| Sync runs               | Implemented — advisory-locked, full lifecycle recorded     |
 | Reality Engine          | Not started — Phase 4                                      |
 | Conflict engine         | Not started — Phase 5                                      |
 | AI investigation        | Not started — Phase 8                                      |
+
+## Connectors
+
+`app/ingestion` depends on `app/connectors/base.DataConnector` and never on a
+concrete connector. That one-way arrow is what makes a new source type cheap:
+write a class, register it, change nothing downstream. Details in
+[phase-3-postgres-connector.md](phase-3-postgres-connector.md).
 
 ## Tenancy
 

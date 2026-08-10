@@ -71,6 +71,22 @@ class MissingOrganizationScopeError(RuntimeError):
         self.tables = tables
 
 
+def organization_id_column(*, index: bool = True) -> Mapped[uuid.UUID]:
+    """The tenant foreign key.
+
+    Set ``index=False`` when another index already leads with
+    ``organization_id`` — PostgreSQL uses a composite index's leftmost prefix,
+    so a second single-column index would be a duplicate to maintain on every
+    write for no read benefit.
+    """
+    return mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=index,
+    )
+
+
 class OrganizationScoped:
     """Mixin declaring a row as owned by exactly one organization.
 
@@ -78,17 +94,16 @@ class OrganizationScoped:
     meaningful orphan state for a tenant-owned row, and leaving rows behind
     whose organization no longer exists would create records that no query can
     legitimately reach.
+
+    Subclasses may redeclare ``organization_id`` with
+    ``organization_id_column(index=False)`` to suppress the default index; the
+    guard registration below is independent of how the column is declared.
     """
 
     @declared_attr
     @classmethod
     def organization_id(cls) -> Mapped[uuid.UUID]:
-        return mapped_column(
-            PGUUID(as_uuid=True),
-            ForeignKey("organizations.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
+        return organization_id_column()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -124,18 +139,31 @@ def _tenant_tables_referenced(statement: Any) -> set[str]:
 def _tenant_tables_constrained(statement: Any) -> set[str]:
     """Tenant-owned table names whose organization_id is referenced in a filter.
 
-    Both WHERE clauses and JOIN-ON clauses count: joining a tenant-owned table
-    on ``organization_id`` constrains it just as effectively as a WHERE.
+    Three places count, because all three genuinely constrain the rows read:
+
+    * the statement's own WHERE clause;
+    * the WHERE clause of any nested SELECT — a scalar subquery computing a
+      per-row count is filtered by its own WHERE, not the outer one;
+    * any JOIN-ON clause, since joining on ``organization_id`` constrains a
+      table just as effectively as a WHERE.
+
+    Missing the nested cases would make the guard reject correctly-scoped
+    queries, and a guard that cries wolf gets switched off.
     """
     clauses: list[Any] = []
 
+    for element in visitors.iterate(statement):
+        if isinstance(element, (Select, Update, Delete)):
+            nested_where = element.whereclause
+            if nested_where is not None:
+                clauses.append(nested_where)
+        elif isinstance(element, Join) and element.onclause is not None:
+            clauses.append(element.onclause)
+
+    # `iterate` does not always yield the top-level statement itself.
     whereclause = getattr(statement, "whereclause", None)
     if whereclause is not None:
         clauses.append(whereclause)
-
-    for element in visitors.iterate(statement):
-        if isinstance(element, Join) and element.onclause is not None:
-            clauses.append(element.onclause)
 
     constrained: set[str] = set()
     for clause in clauses:

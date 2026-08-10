@@ -73,11 +73,13 @@ class User(Base, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="raise",
+        passive_deletes=True,
     )
     sessions: Mapped[list[Session]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="raise",
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:

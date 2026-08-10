@@ -15,6 +15,10 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["development", "test", "staging", "production"]
 
+#: Published development key. Named so the production check reads clearly and
+#: so nobody has to guess which literal is the unsafe one.
+_DEV_CREDENTIAL_KEY = "cmVhbGl0eXN5bmMtZGV2ZWxvcG1lbnQta2V5LW9ubHk="
+
 
 class Settings(BaseSettings):
     """Environment-backed application settings."""
@@ -103,6 +107,32 @@ class Settings(BaseSettings):
     login_rate_limit_attempts: int = 10
     login_rate_limit_window_seconds: int = 300
 
+    # --- Credential encryption -------------------------------------------
+    # Base64 AES-256 key protecting source credentials at rest. The default is
+    # a published, well-known value: it exists so `docker compose up` works out
+    # of the box, and production refuses to start with it.
+    #   Generate one with:
+    #     python -c "from app.core.encryption import generate_key; print(generate_key())"
+    credential_encryption_key: str = _DEV_CREDENTIAL_KEY
+
+    #: Decrypt-only keys retired by rotation, as "version:base64" pairs.
+    #: Records carry the version that produced them, so old credentials keep
+    #: working while they are re-encrypted in the background.
+    credential_encryption_previous_keys: Annotated[list[str], NoDecode] = Field(
+        default_factory=list
+    )
+    credential_encryption_key_version: int = 1
+
+    # --- Connector defaults ----------------------------------------------
+    #: Applied to every outbound connection to a customer database, so an
+    #: unreachable host fails in seconds rather than holding a worker.
+    connector_connect_timeout_seconds: int = 10
+    connector_statement_timeout_seconds: int = 30
+    #: Ceiling on rows read in a single sync. Bounds memory and run time
+    #: against a table far larger than expected.
+    connector_max_rows_per_sync: int = 50_000
+    connector_fetch_batch_size: int = 1_000
+
     # --- Secrets ----------------------------------------------------------
     # Placeholder default; _enforce_production_hardening rejects it in production.
     secret_key: str = "dev-only-insecure-change-me"  # noqa: S105
@@ -110,12 +140,16 @@ class Settings(BaseSettings):
     # --- Health -----------------------------------------------------------
     readiness_timeout_seconds: float = 3.0
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "credential_encryption_previous_keys", mode="before")
     @classmethod
-    def _split_cors_origins(cls, value: object) -> object:
-        """Accept a comma-separated string from the environment."""
+    def _split_comma_separated(cls, value: object) -> object:
+        """Accept a comma-separated string from the environment.
+
+        Same NoDecode reasoning as cors_origins: pydantic-settings would
+        otherwise try to JSON-decode a complex type before this runs.
+        """
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            return [item.strip() for item in value.split(",") if item.strip()]
         return value
 
     @field_validator("cors_origins")
@@ -143,6 +177,12 @@ class Settings(BaseSettings):
         if self.environment == "production":
             if self.secret_key == "dev-only-insecure-change-me":  # noqa: S105
                 raise ValueError("SECRET_KEY must be set explicitly in production")
+            if self.credential_encryption_key == _DEV_CREDENTIAL_KEY:
+                raise ValueError(
+                    "CREDENTIAL_ENCRYPTION_KEY must be set explicitly in production; "
+                    "the default is a published value and would leave every stored "
+                    "source credential readable by anyone with the source code."
+                )
             if not self.cookie_secure:
                 raise ValueError("COOKIE_SECURE must be true in production")
             if any(origin.startswith("http://") for origin in self.cors_origins):

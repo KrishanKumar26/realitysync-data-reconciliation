@@ -50,9 +50,31 @@ jobs:
       DATABASE_URL: postgresql+psycopg://realitysync:realitysync@localhost:5432/realitysync
       REDIS_URL: redis://localhost:6379/0
       CORS_ORIGINS: http://localhost:3000
+      # The source database the connector tests read from. Not a GitHub
+      # `service`: it needs a TLS-enabled image built from infra/, and
+      # `services:` cannot build a Dockerfile.
+      TEST_SOURCE_HOST: localhost
+      TEST_SOURCE_PORT: "5434"
 
     steps:
       - uses: actions/checkout@v4
+
+      # Connector integration tests read from a real PostgreSQL over TLS. If
+      # this is missing they skip loudly rather than passing without having
+      # connected to anything — so it must actually be running in CI.
+      - name: Start the source database (TLS enabled)
+        working-directory: .
+        run: |
+          docker compose --profile dev-source up -d --build source-postgres
+          for i in $(seq 1 30); do
+            if docker compose exec -T source-postgres pg_isready -U source_owner -d source_demo; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Source database did not become ready"
+          docker compose logs --no-color source-postgres
+          exit 1
 
       - uses: actions/setup-python@v5
         with:

@@ -18,6 +18,9 @@ dependencies = [
     # current bcrypt releases. argon2-cffi is the reference implementation.
     "argon2-cffi>=23.1.0",
     "email-validator>=2.2.0",
+    # AES-256-GCM for credential encryption at rest. The reference Python
+    # implementation; no hand-rolled crypto anywhere in this codebase.
+    "cryptography>=44.0.0",
 ]
 
 [project.optional-dependencies]

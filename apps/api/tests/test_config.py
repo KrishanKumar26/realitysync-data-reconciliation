@@ -12,11 +12,16 @@ from pydantic import ValidationError
 
 from app.core.config import Settings
 
+#: A complete, valid production configuration. Tests vary exactly one field
+#: from it, so each asserts the check it names rather than whichever
+#: production requirement happens to be validated first.
 _PROD_BASE = {
     "environment": "production",
     "secret_key": "a-real-secret-value",
     "cookie_secure": True,
     "cors_origins": ["https://app.example.com"],
+    # Not the published development key, which production also rejects.
+    "credential_encryption_key": "cHJvZHVjdGlvbi10ZXN0LWtleS0zMi1ieXRlcy1vayE=",
 }
 
 

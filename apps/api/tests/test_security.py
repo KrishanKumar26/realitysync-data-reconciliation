@@ -364,6 +364,9 @@ def test_production_rejects_insecure_cookies() -> None:
             secret_key="a-real-production-secret",
             cookie_secure=False,
             cors_origins=["https://app.example.com"],
+            # Supplied so this asserts the cookie check rather than tripping
+            # on the credential-key check first.
+            credential_encryption_key="cHJvZHVjdGlvbi10ZXN0LWtleS0zMi1ieXRlcy1vayE=",
         )
 
 

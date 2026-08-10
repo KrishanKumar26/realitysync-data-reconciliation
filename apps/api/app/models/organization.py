@@ -48,6 +48,9 @@ class Organization(Base, TimestampMixin):
         back_populates="organization",
         cascade="all, delete-orphan",
         lazy="raise",
+        # The foreign key already cascades; loading children to delete them
+        # would emit an unscoped query. See app/models/data_source.py.
+        passive_deletes=True,
     )
 
     def __repr__(self) -> str:

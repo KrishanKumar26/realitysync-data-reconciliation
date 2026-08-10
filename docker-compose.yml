@@ -32,6 +32,39 @@ services:
       retries: 10
       start_period: 10s
 
+  # -------------------------------------------------------------------------
+  # Disposable SOURCE database — test infrastructure, not product data.
+  #
+  # Stands in for a customer's PostgreSQL during development: a separate
+  # server, reached over TCP with TLS, using credentials supplied through the
+  # UI like any other source. Nothing in the application has privileged access
+  # to it, and it holds no RealitySync data.
+  #
+  # Empty by default. Put your own tables in it, or point RealitySync at a real
+  # external database instead — see docs/phase-3-postgres-connector.md.
+  # -------------------------------------------------------------------------
+  source-postgres:
+    build:
+      context: ./infra/test-source-postgres
+    container_name: realitysync-source-postgres
+    profiles: ["dev-source"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SOURCE_POSTGRES_USER:-source_owner}
+      POSTGRES_PASSWORD: ${SOURCE_POSTGRES_PASSWORD:-change-me-locally}
+      POSTGRES_DB: ${SOURCE_POSTGRES_DB:-source_demo}
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "${SOURCE_POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - source_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SOURCE_POSTGRES_USER:-source_owner} -d ${SOURCE_POSTGRES_DB:-source_demo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   redis:
     image: redis:7-alpine
     container_name: realitysync-redis
@@ -84,6 +117,8 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
       SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-change-me}
+      # Validated at startup; the process refuses to boot if it is unusable.
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-cmVhbGl0eXN5bmMtZGV2ZWxvcG1lbnQta2V5LW9ubHk=}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -125,5 +160,6 @@ services:
 
 volumes:
   postgres_data:
+  source_postgres_data:
   web_node_modules:
   web_next_cache:

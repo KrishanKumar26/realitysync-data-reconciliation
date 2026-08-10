@@ -126,3 +126,10 @@ async def anonymous_client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as http_client:
         yield http_client
+
+
+# --- Source database -------------------------------------------------------
+# Fixtures for the disposable *source* PostgreSQL that connector tests read
+# from. See tests/source_db.py for the distinction between test infrastructure
+# and product data.
+pytest_plugins = ["tests.source_db"]

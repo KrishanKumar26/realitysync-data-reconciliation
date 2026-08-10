@@ -8,12 +8,12 @@ reality. It detects discrepancies between sources, explains them using evidence,
 maintains historical state, and provides a trusted reality layer for
 software and autonomous systems.
 
-> **Status: Phase 2 — Authentication and multi-tenancy.**
-> The foundation is in place and so is identity: accounts, organizations,
-> memberships, secure sessions, organization switching and multi-tenant
-> isolation. The Reality Engine, connectors, conflict detection and the product
-> UI are implemented in later phases. **There is no product data, and no
-> placeholder data pretending to be product data.**
+> **Status: Phase 3 — PostgreSQL connector.**
+> RealitySync now ingests real data: connect a PostgreSQL database over TLS,
+> discover its schema, select a table, and sync it into canonical observations.
+> The Reality Engine, confidence scoring and conflict detection are later
+> phases. **Every observation comes from a real source row — nothing is seeded,
+> and no placeholder data pretends to be product data.**
 
 ---
 
@@ -97,6 +97,23 @@ organization selector (once you belong to more than one), member list and sign
 out. The API connection indicator in the header is a live probe result, not a
 decoration.
 
+### Connect a database
+
+**Sources → Add source** connects a PostgreSQL database over TLS, discovers its
+schema, and syncs a table you choose into observations. See
+[docs/phase-3-postgres-connector.md](docs/phase-3-postgres-connector.md) for
+the required read-only role and supported SSL modes.
+
+For development there is a disposable, TLS-only source database — **test
+infrastructure, not product data**:
+
+```bash
+docker compose --profile dev-source up -d source-postgres
+```
+
+It starts empty. Create your own tables in it, or point RealitySync at a real
+external database.
+
 ### Port conflicts
 
 Host ports are shadowed silently: if another process already holds a port, your
@@ -145,11 +162,24 @@ Copy `.env.example` to `.env`. Never commit `.env`; it is git-ignored.
 | `PASSWORD_MIN_LENGTH`     | Minimum password length (default 12)                         |
 | `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST_KIB` | Hashing cost; defaults follow OWASP  |
 | `SECRET_KEY`              | Signing secret. Production refuses to start on the default   |
+| `CREDENTIAL_ENCRYPTION_KEY` | Base64 AES-256 key for source credentials. Validated at startup |
+| `CREDENTIAL_ENCRYPTION_PREVIOUS_KEYS` | Retired keys (`version:base64`) kept for decryption |
+| `CONNECTOR_CONNECT_TIMEOUT_SECONDS` | Outbound connection timeout to a source        |
+| `CONNECTOR_MAX_ROWS_PER_SYNC` | Ceiling on rows read per sync (default 50,000)           |
 | `NEXT_PUBLIC_API_URL`     | API URL baked into the frontend at build time                |
 
 Production startup **fails fast** rather than running with unsafe defaults: an
-unset `SECRET_KEY`, `COOKIE_SECURE=false`, or an `http://` CORS origin all raise
-at boot.
+unset `SECRET_KEY`, the published development `CREDENTIAL_ENCRYPTION_KEY`,
+`COOKIE_SECURE=false`, or an `http://` CORS origin all raise at boot. Credential
+encryption additionally self-tests at startup, so a key that decodes but does
+not work stops the process rather than failing one sync at a time.
+
+Generate a real encryption key with:
+
+```bash
+cd apps/api && .venv/bin/python -c \
+  "from app.core.encryption import generate_key; print(generate_key())"
+```
 
 `NEXT_PUBLIC_*` values are inlined into the browser bundle. Never put a secret
 behind that prefix.
@@ -237,8 +267,10 @@ The database URL comes from application settings, never from `alembic.ini`, so
 credentials live only in the environment.
 
 **Current schema:** `0001_foundation` enables `citext`; `0002_identity_tenancy`
-creates `users`, `organizations`, `memberships`, `sessions` and `audit_logs`.
-The observation, entity and reality tables arrive in Phases 3–5.
+creates `users`, `organizations`, `memberships`, `sessions` and `audit_logs`;
+`0003_connector` creates `data_sources`, `source_credentials`,
+`source_streams`, `observations` and `sync_runs`. The entity and reality-state
+tables arrive in Phases 4–5.
 
 ---
 
@@ -354,9 +386,19 @@ Multi-tenancy is enforced in three independent layers — a database composite
 foreign key, an ORM-level scope guard, and non-optional tenant ids in route
 signatures. See [docs/phase-2-authentication.md](docs/phase-2-authentication.md).
 
-Arriving in later phases: Redis-backed rate limiting (the seam exists),
-credential encryption for connectors (Phase 3), member invitations and password
-reset (both need email delivery).
+Source credentials:
+
+- Encrypted at rest with **AES-256-GCM**, an authenticated cipher, using an
+  environment-provided key validated at startup — the process refuses to boot
+  if it cannot decrypt
+- Bound to their row by associated data, so a ciphertext copied to another
+  source or another tenant will not decrypt
+- Key versioning supports rotation without a data migration
+- No response type in the API has a field for a credential, and exactly one
+  function in the codebase returns plaintext
+
+Arriving in later phases: Redis-backed rate limiting (the seam exists), member
+invitations and password reset (both need email delivery).
 
 ---
 
@@ -368,3 +410,4 @@ reset (both need email delivery).
 | [docs/development.md](docs/development.md)            | Day-to-day workflow and troubleshooting |
 | [docs/phase-1-foundation.md](docs/phase-1-foundation.md) | What Phase 1 delivers, and what it deliberately does not |
 | [docs/phase-2-authentication.md](docs/phase-2-authentication.md) | Tenancy model, session design, CSRF strategy, isolation proofs |
+| [docs/phase-3-postgres-connector.md](docs/phase-3-postgres-connector.md) | Connector architecture, SSL modes, permissions, sync and idempotency |

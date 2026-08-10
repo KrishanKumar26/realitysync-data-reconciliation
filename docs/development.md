@@ -56,6 +56,40 @@ A `403 CSRF validation failed` means the header is missing or stale. A
 `403 Request origin is not allowed` means the `Origin` header is not in
 `CORS_ORIGINS` — check that it matches `WEB_PORT`.
 
+## Working with the connector
+
+Connector integration tests read from a real PostgreSQL over TLS. Start the
+disposable source database first — **test infrastructure, not product data**:
+
+```bash
+docker compose --profile dev-source up -d source-postgres
+```
+
+Without it those tests **skip loudly** rather than passing, because a connector
+test that reports success without connecting to anything is worse than no test.
+Point them elsewhere with `TEST_SOURCE_HOST` / `TEST_SOURCE_PORT`.
+
+```bash
+# Everything, including the connector slice
+.venv/bin/pytest
+
+# Connector logic only — no database needed
+.venv/bin/pytest tests/test_connector_unit.py
+
+# The real vertical slice
+.venv/bin/pytest tests/test_connector_integration.py
+```
+
+Inspect the source database directly:
+
+```bash
+PGPASSWORD=change-me-locally psql \
+  "host=localhost port=5434 user=source_owner dbname=source_demo sslmode=require"
+```
+
+It rejects unencrypted connections outright, so `sslmode=disable` fails by
+design — the same policy the connector enforces from its side.
+
 ### Writing organization-scoped queries
 
 Tenant-owned tables must be filtered by `organization_id`. Forgetting raises
@@ -73,6 +107,11 @@ await db.scalars(
 
 If a query is genuinely cross-tenant, wrap it in `app.db.tenancy.unscoped()`
 and say why in a comment. There is currently one such call site.
+
+The guard inspects WHERE clauses, nested subquery WHERE clauses and JOIN-ON
+clauses. A tenant-owned table joined or counted in a subquery must be scoped on
+its own side — during Phase 3 the guard caught exactly that in a stream listing
+query, where only the outer table was filtered.
 
 ---
 

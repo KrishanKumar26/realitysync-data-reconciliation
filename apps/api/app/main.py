@@ -16,6 +16,7 @@ from app.db.session import dispose_engine
 from app.middleware.errors import register_exception_handlers
 from app.middleware.origin import OriginValidationMiddleware
 from app.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware
+from app.services.credentials import validate_encryption_at_startup
 
 logger = get_logger(__name__)
 
@@ -35,6 +36,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         version=settings.api_version,
         cors_origins=settings.cors_origins,
     )
+    # Fail fast if credential encryption is unusable. A process that cannot
+    # decrypt source credentials must refuse to start rather than discover the
+    # problem one failed sync at a time, in production, with no obvious cause.
+    validate_encryption_at_startup(settings)
     try:
         yield
     finally:
