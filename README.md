@@ -8,12 +8,13 @@ reality. It detects discrepancies between sources, explains them using evidence,
 maintains historical state, and provides a trusted reality layer for
 software and autonomous systems.
 
-> **Status: Phase 5 — Conflicts and Timeline.**
+> **Status: Phase 6 — Overview dashboard.**
 > RealitySync ingests real data, resolves it to entities, detects when sources
-> disagree, and reconstructs history on both time axes — what was true, and
-> what we knew. **Confidence scoring is blocked**: the Phase 0 confidence
-> specification is unrecoverable, so no score is produced rather than a guessed
-> one. See [docs/phase-5-conflicts-and-timeline.md](docs/phase-5-conflicts-and-timeline.md).
+> disagree, reconstructs history on both time axes, and reports source health,
+> ingestion and activity on a live Overview. **Confidence scoring is blocked**:
+> the Phase 0 confidence specification is unrecoverable, so the dashboard
+> reports its absence rather than a guessed number — every confidence field is
+> `null`, never `0`. See [docs/phase-6-overview.md](docs/phase-6-overview.md).
 > **Every value shown comes from a real source row — nothing is seeded, and no
 > placeholder data pretends to be product data.**
 
@@ -414,3 +415,4 @@ invitations and password reset (both need email delivery).
 | [docs/phase-2-authentication.md](docs/phase-2-authentication.md) | Tenancy model, session design, CSRF strategy, isolation proofs |
 | [docs/phase-3-postgres-connector.md](docs/phase-3-postgres-connector.md) | Connector architecture, SSL modes, permissions, sync and idempotency |
 | [docs/phase-5-conflicts-and-timeline.md](docs/phase-5-conflicts-and-timeline.md) | Conflict detection, bitemporal timeline, and the isolated confidence dependency |
+| [docs/phase-6-overview.md](docs/phase-6-overview.md) | Overview dashboard, source health, activity, and reporting an absent measure |

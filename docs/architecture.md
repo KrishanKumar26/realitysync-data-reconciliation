@@ -145,6 +145,7 @@ that need them.
 | Entity resolution       | Implemented — declared mappings, never inferred (Phase 5)   |
 | Conflict engine         | Detection implemented; grading blocked on Phase 0 spec      |
 | Timeline (bitemporal)   | Implemented — event vs knowledge axis (Phase 5)             |
+| Overview dashboard      | Implemented — real aggregates; confidence panel reports its absence (Phase 6) |
 | AI investigation        | Not started — Phase 8                                      |
 
 ## Connectors
