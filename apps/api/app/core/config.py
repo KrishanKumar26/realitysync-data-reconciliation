@@ -64,11 +64,44 @@ class Settings(BaseSettings):
     # --- Cookies ----------------------------------------------------------
     # Environment-driven so the staging (cross-site) and production
     # (same-site, shared parent domain) configurations differ only by config.
-    # No authentication is implemented in Phase 1; these settle the contract.
     cookie_name: str = "rs_session"
     cookie_domain: str | None = None
     cookie_secure: bool = False
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
+    #: Companion readable cookie carrying the CSRF token. Deliberately NOT
+    #: HttpOnly — the browser must read it to echo it in a request header.
+    #: It is useless on its own: it authenticates nothing.
+    csrf_cookie_name: str = "rs_csrf"
+    csrf_header_name: str = "X-CSRF-Token"
+
+    # --- Sessions ---------------------------------------------------------
+    #: Absolute ceiling. A session dies at issued_at + lifetime regardless of
+    #: activity, so a stolen cookie has a bounded useful life.
+    session_lifetime_seconds: int = 60 * 60 * 24 * 14  # 14 days
+    #: Idle timeout. A session unused for this long is rejected.
+    session_idle_timeout_seconds: int = 60 * 60 * 24  # 24 hours
+    #: Minimum interval between last_seen_at writes, so an active session does
+    #: not cause a database write on every single request.
+    session_touch_interval_seconds: int = 60
+
+    # --- Password policy --------------------------------------------------
+    password_min_length: int = 12
+    password_max_length: int = 256
+
+    # --- Argon2id parameters ---------------------------------------------
+    # Defaults follow the OWASP Password Storage Cheat Sheet recommendation
+    # (19 MiB, t=2, p=1). Configurable because the right cost depends on the
+    # deployment's CPU budget, and tests need a cheap setting.
+    argon2_time_cost: int = 2
+    argon2_memory_cost_kib: int = 19456
+    argon2_parallelism: int = 1
+
+    # --- Rate limiting ----------------------------------------------------
+    # The seam exists now; the Redis-backed implementation belongs to the
+    # phase that owns Redis rate limiting. See app/services/rate_limit.py.
+    login_rate_limit_attempts: int = 10
+    login_rate_limit_window_seconds: int = 300
 
     # --- Secrets ----------------------------------------------------------
     # Placeholder default; _enforce_production_hardening rejects it in production.
@@ -116,6 +149,15 @@ class Settings(BaseSettings):
                 raise ValueError("CORS_ORIGINS must use https:// in production")
         if self.cookie_samesite == "none" and not self.cookie_secure:
             raise ValueError("COOKIE_SAMESITE=none requires COOKIE_SECURE=true")
+        if self.session_idle_timeout_seconds > self.session_lifetime_seconds:
+            raise ValueError(
+                "SESSION_IDLE_TIMEOUT_SECONDS cannot exceed SESSION_LIFETIME_SECONDS; "
+                "the idle timeout would never be reached."
+            )
+        if self.password_min_length < 8:
+            raise ValueError("PASSWORD_MIN_LENGTH must be at least 8")
+        if self.password_min_length > self.password_max_length:
+            raise ValueError("PASSWORD_MIN_LENGTH cannot exceed PASSWORD_MAX_LENGTH")
         return self
 
     @property

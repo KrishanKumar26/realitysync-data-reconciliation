@@ -64,6 +64,38 @@ def _request_id(request: Request) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def safe_validation_details(exc: RequestValidationError) -> list[dict[str, Any]]:
+    """Reduce a validation error to the fields that are safe to return.
+
+    Pydantic's ``errors()`` carries two things that must not leave the process:
+
+    ``input``
+        The value that failed. For a password field that is the submitted
+        password — echoed into the response body and, through the error log,
+        into the log sink. Redaction by key name does not catch it, because the
+        key here is the literal string "input".
+
+    ``ctx``
+        May hold the original exception object, which is not JSON serialisable.
+        Serialising it raised a TypeError that turned every custom-validator
+        failure into a 500 instead of a 422.
+
+    Keeping only location, message and type tells the client exactly which
+    field is wrong and why, without ever quoting what they sent.
+    """
+    details: list[dict[str, Any]] = []
+    for error in exc.errors():
+        location = error.get("loc", ())
+        details.append(
+            {
+                "loc": [str(part) for part in location],
+                "msg": str(error.get("msg", "Invalid value")),
+                "type": str(error.get("type", "value_error")),
+            }
+        )
+    return details
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Install handlers producing the uniform envelope."""
 
@@ -79,10 +111,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         return error_response(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             message="Request validation failed",
             request_id=_request_id(request),
-            details=exc.errors(),
+            details=safe_validation_details(exc),
         )
 
     @app.exception_handler(Exception)

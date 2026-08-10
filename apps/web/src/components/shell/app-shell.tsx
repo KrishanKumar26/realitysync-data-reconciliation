@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { OrganizationSwitcher } from "@/components/auth/organization-switcher";
+import { useSession } from "@/components/auth/session-provider";
 import { ApiStatusIndicator, useApiStatus } from "@/components/shell/api-status";
 import { NAV_ITEMS } from "@/components/shell/nav";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,8 @@ import { cn } from "@/lib/utils";
  *
  * Responsive by construction — the sidebar becomes a disclosure panel below
  * the `lg` breakpoint rather than a separate mobile implementation.
+ *
+ * Rendered only for an authenticated session; AuthGate decides that.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -32,8 +36,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* --- Sidebar --- */}
         <aside
           className={cn(
-            "border-b border-border bg-panel lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r",
-            navOpen ? "block" : "hidden lg:block",
+            "border-b border-border bg-panel lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-b-0 lg:border-r",
+            navOpen ? "block" : "hidden lg:flex",
           )}
         >
           <div className="flex h-14 items-center gap-2.5 px-5 lg:border-b lg:border-border">
@@ -44,7 +48,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="text-sm font-semibold tracking-tight">RealitySync</span>
           </div>
 
-          <nav aria-label="Workspace" className="px-3 py-4">
+          <div className="border-b border-border px-2.5 py-2.5">
+            <OrganizationSwitcher />
+          </div>
+
+          <nav
+            id="workspace-nav"
+            aria-label="Workspace"
+            className="flex-1 px-3 py-4"
+          >
             <ul className="space-y-0.5">
               {NAV_ITEMS.map((item) => {
                 const active =
@@ -72,6 +84,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               })}
             </ul>
           </nav>
+
+          <div className="border-t border-border p-2.5">
+            <UserMenu />
+          </div>
         </aside>
 
         {/* --- Main column --- */}
@@ -101,6 +117,39 @@ export function AppShell({ children }: { children: ReactNode }) {
           </footer>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Signed-in identity and sign-out. */
+function UserMenu() {
+  const { status, logout } = useSession();
+  const [signingOut, setSigningOut] = useState(false);
+
+  if (status.kind !== "authenticated") return null;
+  const { user } = status.session;
+
+  return (
+    <div className="space-y-2">
+      <div className="px-1">
+        <p className="truncate text-sm font-medium text-foreground">
+          {user.full_name}
+        </p>
+        <p className="truncate text-xs text-muted-foreground" title={user.email}>
+          {user.email}
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={signingOut}
+        onClick={() => {
+          setSigningOut(true);
+          void logout();
+        }}
+        className="w-full rounded-md px-1 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground disabled:opacity-60"
+      >
+        {signingOut ? "Signing out…" : "Sign out"}
+      </button>
     </div>
   );
 }

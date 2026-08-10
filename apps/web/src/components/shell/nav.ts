@@ -49,6 +49,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: "/settings",
     label: "Settings",
     description: "Workspace, members and security",
+    // Functional from Phase 2: workspace details and the member list are real
+    // records from the active organization.
     phase: 2,
   },
 ] as const;

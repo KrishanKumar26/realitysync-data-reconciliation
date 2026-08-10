@@ -57,6 +57,28 @@ export interface ApiRequestOptions extends Omit<RequestInit, "signal"> {
   timeoutMs?: number;
 }
 
+/** Name of the readable cookie carrying the CSRF token. */
+const CSRF_COOKIE = "rs_csrf";
+const CSRF_HEADER = "X-CSRF-Token";
+
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Read the CSRF token the API set on the last authenticated response.
+ *
+ * Deliberately read at call time rather than cached: logging in, logging out
+ * and switching accounts all replace it, and a stale copy would fail every
+ * state-changing request until a reload.
+ */
+export function readCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${CSRF_COOKIE}=([^;]*)`),
+  );
+  const value = match?.[1];
+  return value === undefined ? null : decodeURIComponent(value);
+}
+
 /**
  * Perform an API request and parse the JSON body.
  *
@@ -72,15 +94,23 @@ export async function apiFetch<T>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const method = (init.method ?? "GET").toUpperCase();
+  // Attached only to state-changing requests, which are the only ones the API
+  // checks. Sending it on every GET would leak the token into more places for
+  // no benefit.
+  const csrfToken = UNSAFE_METHODS.has(method) ? readCsrfToken() : null;
+
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
-      // Session cookies are the authentication mechanism from Phase 2 onward.
+      // Session cookies are the authentication mechanism. Without this the
+      // browser sends no cookie cross-origin and every request is anonymous.
       credentials: "include",
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         "X-Request-ID": createRequestId(),
+        ...(csrfToken ? { [CSRF_HEADER]: csrfToken } : {}),
         ...headers,
       },
     });
@@ -130,4 +160,82 @@ export interface HealthResponse {
 
 export function fetchHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/health", { cache: "no-store" });
+}
+
+/* --- Authentication ----------------------------------------------------- */
+
+export type OrganizationRole = "owner" | "admin" | "member" | "viewer";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  full_name: string;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface OrganizationMembership {
+  id: string;
+  name: string;
+  slug: string;
+  role: OrganizationRole;
+}
+
+export interface AuthenticatedSession {
+  authenticated: true;
+  user: AuthUser;
+  organizations: OrganizationMembership[];
+  active_organization_id: string | null;
+  csrf_token: string;
+  expires_at: string;
+}
+
+export interface AnonymousSession {
+  authenticated: false;
+  /**
+   * "expired" means a session existed and ended, so the interface can say so
+   * instead of showing a bare sign-in form as though nothing happened.
+   */
+  reason: "anonymous" | "expired";
+}
+
+export type SessionState = AuthenticatedSession | AnonymousSession;
+
+export function fetchSession(): Promise<SessionState> {
+  return apiFetch<SessionState>("/api/auth/session", { cache: "no-store" });
+}
+
+export function loginRequest(input: {
+  email: string;
+  password: string;
+}): Promise<AuthenticatedSession> {
+  return apiFetch<AuthenticatedSession>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function registerRequest(input: {
+  email: string;
+  password: string;
+  full_name: string;
+  organization_name: string;
+}): Promise<AuthenticatedSession> {
+  return apiFetch<AuthenticatedSession>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function logoutRequest(): Promise<{ ok: true }> {
+  return apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" });
+}
+
+export function switchOrganizationRequest(
+  organizationId: string,
+): Promise<AuthenticatedSession> {
+  return apiFetch<AuthenticatedSession>("/api/auth/organization", {
+    method: "POST",
+    body: JSON.stringify({ organization_id: organizationId }),
+  });
 }

@@ -1,35 +1,41 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/shell/app-shell";
 import { NAV_ITEMS } from "@/components/shell/nav";
 
-function stubHealth(ok: boolean) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({
-      ok,
-      status: ok ? 200 : 503,
-      headers: new Headers(),
-      json: async () =>
-        ok
-          ? { status: "ok", service: "RealitySync API", version: "0.1.0", environment: "test" }
-          : { error: { code: "SERVICE_UNAVAILABLE", message: "down" } },
-    } as Response),
-  );
+import {
+  HEALTH_OK,
+  authenticatedSession,
+  renderWithSession,
+  stubApi,
+} from "./helpers";
+
+/**
+ * The shell renders only for an authenticated session, so every test here
+ * wraps it in a provider backed by a resolved session — the same condition
+ * under which it appears in the product.
+ */
+function shellRoutes(healthOk = true) {
+  return {
+    "/api/auth/session": { body: authenticatedSession() },
+    "/health": healthOk
+      ? HEALTH_OK
+      : { status: 503, body: { error: { code: "SERVICE_UNAVAILABLE", message: "down" } } },
+  };
 }
 
 describe("AppShell", () => {
   beforeEach(() => {
-    stubHealth(true);
+    stubApi(shellRoutes());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("boots and renders the product name", () => {
-    render(
+  it("boots and renders the product name", async () => {
+    await renderWithSession(
       <AppShell>
         <p>content</p>
       </AppShell>,
@@ -38,8 +44,8 @@ describe("AppShell", () => {
     expect(screen.getByText("RealitySync")).toBeInTheDocument();
   });
 
-  it("renders every navigation destination", () => {
-    render(
+  it("renders every navigation destination", async () => {
+    await renderWithSession(
       <AppShell>
         <p>content</p>
       </AppShell>,
@@ -54,8 +60,8 @@ describe("AppShell", () => {
     }
   });
 
-  it("renders its children", () => {
-    render(
+  it("renders its children", async () => {
+    await renderWithSession(
       <AppShell>
         <p>child content</p>
       </AppShell>,
@@ -64,23 +70,35 @@ describe("AppShell", () => {
     expect(screen.getByText("child content")).toBeInTheDocument();
   });
 
-  it("reports API connectivity once the probe resolves", async () => {
-    render(
+  it("shows the signed-in user and their workspace", async () => {
+    await renderWithSession(
       <AppShell>
         <p>content</p>
       </AppShell>,
     );
 
-    expect(screen.getByText("Checking API…")).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Northwind Logistics")).toBeInTheDocument();
+  });
+
+  it("reports API connectivity once the probe resolves", async () => {
+    await renderWithSession(
+      <AppShell>
+        <p>content</p>
+      </AppShell>,
+    );
+
     await waitFor(() => {
       expect(screen.getByText("API connected")).toBeInTheDocument();
     });
   });
 
   it("reports API unavailability rather than claiming a connection", async () => {
-    stubHealth(false);
+    vi.unstubAllGlobals();
+    stubApi(shellRoutes(false));
 
-    render(
+    await renderWithSession(
       <AppShell>
         <p>content</p>
       </AppShell>,
@@ -92,8 +110,8 @@ describe("AppShell", () => {
     expect(screen.queryByText("API connected")).not.toBeInTheDocument();
   });
 
-  it("exposes a skip link for keyboard users", () => {
-    render(
+  it("exposes a skip link for keyboard users", async () => {
+    await renderWithSession(
       <AppShell>
         <p>content</p>
       </AppShell>,

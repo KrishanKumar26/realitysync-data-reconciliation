@@ -1,12 +1,28 @@
 """ORM models.
 
-Intentionally empty in Phase 1. The 21-table domain schema (organizations,
-users, memberships, sessions, data_sources, source_credentials,
-source_schemas, source_streams, entities, entity_mappings, observations,
-events, reality_states, reality_state_versions, state_snapshots, conflicts,
-conflict_evidence, investigations, policies, audit_logs, sync_runs) is
-implemented across Phases 2-5.
+Importing every model here is what makes Alembic autogenerate work: the
+metadata must know about a table before it can diff against the database. A
+model that is not imported is a model that silently never gets a migration.
 
-Every model must import Base from app.db.base so it is registered on the
-shared metadata that Alembic autogenerate inspects.
+Phase 2 owns the identity and tenancy tables. The observation, entity and
+reality tables arrive in Phases 3-5.
 """
+
+from __future__ import annotations
+
+from app.models.audit_log import AuditAction, AuditLog
+from app.models.membership import ROLE_VALUES, Membership, OrganizationRole
+from app.models.organization import Organization
+from app.models.session import Session
+from app.models.user import User
+
+__all__ = [
+    "ROLE_VALUES",
+    "AuditAction",
+    "AuditLog",
+    "Membership",
+    "Organization",
+    "OrganizationRole",
+    "Session",
+    "User",
+]

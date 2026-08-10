@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
-import { AppShell } from "@/components/shell/app-shell";
+import { AuthGate } from "@/components/auth/auth-gate";
+import { SessionProvider } from "@/components/auth/session-provider";
 import "@/styles/globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +26,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <AppShell>{children}</AppShell>
+        {/* The session is resolved once here and shared by every route, so a
+            navigation never re-asks "who is signed in". */}
+        <SessionProvider>
+          <AuthGate>{children}</AuthGate>
+        </SessionProvider>
       </body>
     </html>
   );

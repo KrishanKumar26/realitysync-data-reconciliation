@@ -8,12 +8,12 @@ reality. It detects discrepancies between sources, explains them using evidence,
 maintains historical state, and provides a trusted reality layer for
 software and autonomous systems.
 
-> **Status: Phase 1 — Foundation.**
-> This repository currently contains the project foundation only: a running API
-> with health endpoints, a frontend shell, the migration system, and the local
-> development environment. The Reality Engine, connectors, authentication and
-> the product UI are implemented in later phases. **There is no product data,
-> and no placeholder data pretending to be product data.**
+> **Status: Phase 2 — Authentication and multi-tenancy.**
+> The foundation is in place and so is identity: accounts, organizations,
+> memberships, secure sessions, organization switching and multi-tenant
+> isolation. The Reality Engine, connectors, conflict detection and the product
+> UI are implemented in later phases. **There is no product data, and no
+> placeholder data pretending to be product data.**
 
 ---
 
@@ -88,9 +88,14 @@ Once the stack reports healthy:
 | Liveness          | http://localhost:8000/health    |
 | Readiness         | http://localhost:8000/ready     |
 
-The overview page shows the live result of the API health probe: **API
-connected**, **API unavailable**, or a loading state. That indicator is real —
-it reflects what the backend actually returned.
+Open the web app and **create a workspace** — that is the only way accounts
+enter the system. There is no seeded user and no demo login, because a seeded
+account is a credential shipped in a repository.
+
+Once signed in you get the application shell with your workspace, an
+organization selector (once you belong to more than one), member list and sign
+out. The API connection indicator in the header is a live probe result, not a
+decoration.
 
 ### Port conflicts
 
@@ -133,7 +138,12 @@ Copy `.env.example` to `.env`. Never commit `.env`; it is git-ignored.
 | `API_BASE_URL`            | Public URL of the API                                       |
 | `WEB_BASE_URL`            | Public URL of the frontend                                  |
 | `CORS_ORIGINS`            | Comma-separated allowlist. `*` is rejected at startup        |
-| `COOKIE_NAME/DOMAIN/SECURE/SAMESITE` | Session cookie contract (used from Phase 2)      |
+| `COOKIE_NAME/DOMAIN/SECURE/SAMESITE` | Session cookie contract                          |
+| `CSRF_COOKIE_NAME` / `CSRF_HEADER_NAME` | Readable CSRF cookie and its echo header      |
+| `SESSION_LIFETIME_SECONDS` | Absolute session expiry (default 14 days)                   |
+| `SESSION_IDLE_TIMEOUT_SECONDS` | Inactivity expiry (default 24 hours)                    |
+| `PASSWORD_MIN_LENGTH`     | Minimum password length (default 12)                         |
+| `ARGON2_TIME_COST` / `ARGON2_MEMORY_COST_KIB` | Hashing cost; defaults follow OWASP  |
 | `SECRET_KEY`              | Signing secret. Production refuses to start on the default   |
 | `NEXT_PUBLIC_API_URL`     | API URL baked into the frontend at build time                |
 
@@ -226,8 +236,9 @@ cd apps/api
 The database URL comes from application settings, never from `alembic.ini`, so
 credentials live only in the environment.
 
-**Current schema:** one migration (`0001_foundation`) enabling the `citext`
-extension. The 21-table domain schema is implemented across Phases 2–5.
+**Current schema:** `0001_foundation` enables `citext`; `0002_identity_tenancy`
+creates `users`, `organizations`, `memberships`, `sessions` and `audit_logs`.
+The observation, entity and reality tables arrive in Phases 3–5.
 
 ---
 
@@ -244,7 +255,8 @@ extension. The 21-table domain schema is implemented across Phases 2–5.
 │   │   │   ├── core/            Config, logging, secret redaction
 │   │   │   ├── db/              Engine, session, declarative base
 │   │   │   ├── middleware/      Request id, error envelope
-│   │   │   ├── models/          ORM models (empty until Phase 2)
+│   │   │   ├── models/          ORM models: user, organization, membership,
+│   │   │   │                      session, audit_log
 │   │   │   ├── schemas/         Pydantic request/response models
 │   │   │   ├── services/        Application services
 │   │   │   └── main.py          Application factory
@@ -309,20 +321,42 @@ obtained, so no core change is required.
 
 ## Security
 
-Implemented in the foundation:
+Infrastructure:
 
 - Secrets are environment-only; `.env` and key material are git-ignored
 - A root-level log redaction filter scrubs passwords, DSNs, tokens, cookies and
   PEM blocks from every log record, including exception text
 - API errors return a uniform envelope with a request id and **no** stack
-  traces, driver text or connection details
+  traces, driver text or connection details. Validation errors report which
+  field failed and why, never the value that was submitted
 - CORS is an explicit allowlist; `*` is rejected at startup
 - Production configuration is validated at boot and fails fast
 - Containers run as non-root users
 - Every request carries a correlation id, echoed in `X-Request-ID`
 
-Arriving in later phases: authentication and sessions (Phase 2), credential
-encryption (Phase 3), rate limiting and audit logging (Phase 2–9).
+Authentication:
+
+- Passwords hashed with **Argon2id** at OWASP-recommended cost, upgraded
+  automatically when the cost is raised
+- Sessions are **server-side and revocable**; only a SHA-256 hash of the token
+  is stored, so a database disclosure yields no usable sessions
+- Session cookie is **HttpOnly**; `Secure` and `SameSite` are environment-driven
+  and validated at boot
+- **CSRF**: a session-bound token for authenticated writes, validated against
+  the session row rather than against the cookie; plus `Origin` validation on
+  every state-changing request, which is what covers login CSRF
+- Credential failures are indistinguishable in message *and* timing, so the
+  login endpoint is not a user-enumeration oracle
+- Password hashes have no field in any response type
+- Security events are written to an append-only audit trail
+
+Multi-tenancy is enforced in three independent layers — a database composite
+foreign key, an ORM-level scope guard, and non-optional tenant ids in route
+signatures. See [docs/phase-2-authentication.md](docs/phase-2-authentication.md).
+
+Arriving in later phases: Redis-backed rate limiting (the seam exists),
+credential encryption for connectors (Phase 3), member invitations and password
+reset (both need email delivery).
 
 ---
 
@@ -333,3 +367,4 @@ encryption (Phase 3), rate limiting and audit logging (Phase 2–9).
 | [docs/architecture.md](docs/architecture.md)          | Component boundaries and data flow |
 | [docs/development.md](docs/development.md)            | Day-to-day workflow and troubleshooting |
 | [docs/phase-1-foundation.md](docs/phase-1-foundation.md) | What Phase 1 delivers, and what it deliberately does not |
+| [docs/phase-2-authentication.md](docs/phase-2-authentication.md) | Tenancy model, session design, CSRF strategy, isolation proofs |

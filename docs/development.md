@@ -24,6 +24,56 @@ curl -s localhost:8000/health   # {"status":"ok",...}
 curl -s localhost:8000/ready    # {"status":"ready","database":"ok","redis":"ok",...}
 ```
 
+Then open the web app and create a workspace. There is no seeded account —
+registration is the only way users enter the system, in every environment.
+
+---
+
+## Working with authentication
+
+`GET /api/auth/session` returns 200 whether or not you are signed in; the
+`authenticated` field is the answer. Everything else under `/api` requires a
+session.
+
+State-changing requests need the CSRF token. The browser client handles this
+automatically; from the command line:
+
+```bash
+# Sign in, keeping cookies
+curl -sS -c jar.txt -X POST localhost:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"…"}' | tee session.json
+
+# The CSRF token is in the response body and in the readable rs_csrf cookie
+CSRF=$(python3 -c "import json;print(json.load(open('session.json'))['csrf_token'])")
+
+curl -sS -b jar.txt -X POST localhost:8000/api/auth/organization \
+  -H 'Content-Type: application/json' -H "X-CSRF-Token: $CSRF" \
+  -d '{"organization_id":"…"}'
+```
+
+A `403 CSRF validation failed` means the header is missing or stale. A
+`403 Request origin is not allowed` means the `Origin` header is not in
+`CORS_ORIGINS` — check that it matches `WEB_PORT`.
+
+### Writing organization-scoped queries
+
+Tenant-owned tables must be filtered by `organization_id`. Forgetting raises
+`MissingOrganizationScopeError` rather than returning another tenant's rows:
+
+```python
+# Raises
+await db.scalars(select(Membership).where(Membership.role == "owner"))
+
+# Correct — the tenant id comes from the session, via CurrentOrganization
+await db.scalars(
+    select(Membership).where(Membership.organization_id == context.organization_id)
+)
+```
+
+If a query is genuinely cross-tenant, wrap it in `app.db.tenancy.unscoped()`
+and say why in a comment. There is currently one such call site.
+
 ---
 
 ## Common commands

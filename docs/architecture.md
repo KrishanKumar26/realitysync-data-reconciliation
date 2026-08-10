@@ -104,7 +104,7 @@ that need them.
 
 ---
 
-## Phase 1 status
+## Implementation status
 
 | Area                    | State                                                     |
 | ----------------------- | --------------------------------------------------------- |
@@ -113,13 +113,25 @@ that need them.
 | Error envelope          | Implemented — uniform shape, safe messages                 |
 | Database connectivity   | Implemented — async engine, pooling, health probe          |
 | Redis connectivity      | Implemented — client lifecycle, health probe               |
-| Migrations              | Implemented — Alembic, one foundation migration            |
+| Migrations              | Implemented — Alembic, foundation + identity migrations    |
 | Health / readiness      | Implemented — `/health`, `/ready`                          |
 | Frontend shell          | Implemented — navigation, design tokens, states            |
 | API client              | Implemented — typed, correlated, timeouts, error mapping   |
-| ORM models              | Not started — Phases 2–5                                   |
-| Authentication          | Not started — Phase 2                                      |
+| Identity and tenancy    | Implemented — users, organizations, memberships (Phase 2)  |
+| Authentication          | Implemented — Argon2id, server-side sessions, CSRF         |
+| Multi-tenant isolation  | Implemented — composite FK, ORM scope guard, route context |
+| Audit trail             | Implemented — append-only, nullable tenant                 |
+| Frontend auth shell     | Implemented — sign-in, org selector, sign-out, states      |
+| Rate limiting           | Seam only — Redis implementation in a later phase          |
 | Connectors              | Not started — Phase 3                                      |
 | Reality Engine          | Not started — Phase 4                                      |
 | Conflict engine         | Not started — Phase 5                                      |
 | AI investigation        | Not started — Phase 8                                      |
+
+## Tenancy
+
+Organizations are tenants; memberships connect users to them; sessions carry
+the active organization. Isolation is enforced three times over — in the
+database, in the ORM session, and in route signatures — because a single layer
+that can be bypassed by one forgotten `WHERE` clause is not a control. The full
+model is documented in [phase-2-authentication.md](phase-2-authentication.md).

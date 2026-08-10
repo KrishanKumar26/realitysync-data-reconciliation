@@ -14,6 +14,7 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import dispose_engine
 from app.middleware.errors import register_exception_handlers
+from app.middleware.origin import OriginValidationMiddleware
 from app.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware
 
 logger = get_logger(__name__)
@@ -67,14 +68,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None if settings.is_production else "/openapi.json",
     )
 
-    # Order matters: RequestIDMiddleware is added last so it runs first and a
-    # request id is bound before CORS or any handler produces output.
+    # Starlette runs middleware in reverse registration order, so the last one
+    # added runs first. The intended inbound order is:
+    #
+    #   RequestID  ->  CORS  ->  OriginValidation  ->  routes
+    #
+    # RequestID first, so a request id exists before anything else can log or
+    # respond. CORS before origin validation, so a rejected cross-origin
+    # request still gets CORS headers on its 403 and the browser surfaces the
+    # real error instead of an opaque CORS failure.
+    app.add_middleware(OriginValidationMiddleware, allowed_origins=settings.cors_origins)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", REQUEST_ID_HEADER, "Idempotency-Key"],
+        allow_headers=[
+            "Content-Type",
+            REQUEST_ID_HEADER,
+            "Idempotency-Key",
+            settings.csrf_header_name,
+        ],
         expose_headers=[REQUEST_ID_HEADER],
         max_age=600,
     )

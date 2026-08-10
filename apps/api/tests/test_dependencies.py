@@ -40,12 +40,23 @@ async def test_citext_extension_is_installed() -> None:
         await dispose_engine()
 
 
-async def test_alembic_version_is_recorded() -> None:
-    """The migration system must have stamped this database."""
+async def test_database_is_migrated_to_head() -> None:
+    """The database must be stamped with the latest revision.
+
+    Compares against whatever Alembic considers head rather than a hard-coded
+    id, so adding a migration does not require editing this test — and so the
+    test keeps meaning "fully migrated" instead of "migrated to the revision
+    that was current when this was written".
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+
     try:
         async with get_sessionmaker()() as session:
             result = await session.execute(text("SELECT version_num FROM alembic_version"))
-            assert result.scalar_one() == "0001_foundation"
+            assert result.scalar_one() == head
     finally:
         await dispose_engine()
 

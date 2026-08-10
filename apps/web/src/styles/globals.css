@@ -153,6 +153,24 @@
     border-radius: var(--radius-panel);
   }
 
+  /* Entrance for panels, menus and the auth screen. Short and slight — the
+     point is to make an appearance feel placed rather than to be noticed.
+     The reduced-motion block above neutralises it. */
+  .animate-rise {
+    animation: rise 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   .skeleton {
     background: linear-gradient(
       90deg,
