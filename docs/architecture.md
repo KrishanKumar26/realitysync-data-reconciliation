@@ -78,12 +78,21 @@ Status: **Phase 5.** No temporal tables exist yet.
 ```
 w_o     = R_source × Freshness × Quality
 Ceiling = 1 − Π(1 − R_source)  over supporting sources, capped at 0.99
-Base    = 0.40·agreement + 0.30·freshness + 0.15·quality + 0.15·validation
-Score   = 100 × Ceiling × Base × coverage × staleness × impossible × late
+Base    = 0.40·reliability + 0.30·freshness + 0.15·quality + 0.15·agreement
+Score   = 100 × Ceiling × Base × penalties
 ```
 
 Deterministic, bounded at 99, and stored with its full component breakdown so
-any score can be re-derived and explained. Status: **Phase 4.**
+any score can be re-derived and explained.
+
+> **Superseded, Phase 4.** This document previously recorded Base as
+> `0.40·agreement + 0.30·freshness + 0.15·quality + 0.15·validation`. The
+> Phase 4 brief specifies `reliability = 0.40, freshness = 0.30,
+> quality = 0.15, agreement = 0.15`, which is the version implemented. Two
+> terms changed: reliability replaces agreement at 0.40, and agreement
+> replaces validation at 0.15. Reliability therefore appears in both the
+> Ceiling and the Base — a deliberate double weighting of source authority,
+> confirmed rather than assumed.
 
 ---
 
