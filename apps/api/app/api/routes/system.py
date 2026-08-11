@@ -30,6 +30,7 @@ from app.api.deps import AppSettings, CurrentAuth
 from app.cache.redis import get_redis
 from app.core.logging import get_logger
 from app.engine.spec import ALGORITHM_VERSION, MISSING_SPECIFICATIONS
+from app.ingestion.scheduler import scheduler_state
 from app.schemas.system import (
     ComponentState,
     ComponentStatus,
@@ -101,6 +102,42 @@ async def system_status(
                 name="rate_limiting",
                 state="operational",
                 detail="Redis-backed sliding window.",
+            )
+        )
+
+    # --- Sync scheduler ---
+    # Not authoritative: if it never runs, nothing is wrong and no observation
+    # is lost — sources are simply staler than configured, and manual sync
+    # still works. So a stopped scheduler is reported, not treated as an
+    # outage of the product.
+    scheduler = scheduler_state()
+    if not settings.sync_scheduler_enabled:
+        components.append(
+            ComponentStatus(
+                name="sync_scheduler",
+                state="disabled",
+                detail="Disabled by configuration. Sources refresh only on manual sync.",
+            )
+        )
+    elif not scheduler.running:
+        components.append(
+            ComponentStatus(
+                name="sync_scheduler",
+                state="degraded",
+                detail="Enabled but not running; scheduled syncs are not happening.",
+            )
+        )
+    else:
+        components.append(
+            ComponentStatus(
+                name="sync_scheduler",
+                state="operational",
+                detail=(
+                    f"{scheduler.ticks} ticks, {scheduler.sources_synced} sources synced, "
+                    f"{scheduler.failures} failures"
+                    + (f" (last: {scheduler.last_error})" if scheduler.last_error else "")
+                    + "."
+                ),
             )
         )
 

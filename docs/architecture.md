@@ -147,13 +147,14 @@ the rule exists to prevent.
 | Credential encryption   | Implemented — AES-256-GCM, row-bound, rotatable            |
 | Observation ingestion   | Implemented — normalised, fingerprinted, idempotent        |
 | Sync runs               | Implemented — advisory-locked, full lifecycle recorded     |
-
 | Reality Engine          | Structure implemented; scoring blocked on Phase 0 spec      |
 | Entity resolution       | Implemented — declared mappings, never inferred (Phase 5)   |
 | Conflict engine         | Detection implemented; grading blocked on Phase 0 spec      |
 | Timeline (bitemporal)   | Implemented — event vs knowledge axis (Phase 5)             |
 | Overview dashboard      | Implemented — real aggregates; confidence panel reports its absence (Phase 6) |
-| AI investigation        | Not started — Phase 8                                      |
+| MySQL connector         | Implemented — TLS-only, read-only, second source type (Phase 8) |
+| Scheduled sync          | Implemented — per-stream poll interval, windowed keys (Phase 8) |
+| AI investigation        | Not started — unscheduled                                  |
 
 ## Connectors
 

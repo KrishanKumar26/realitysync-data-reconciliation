@@ -13,6 +13,7 @@ from app.cache.redis import close_redis, get_redis
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import dispose_engine
+from app.ingestion.scheduler import start_scheduler, stop_scheduler
 from app.middleware.errors import register_exception_handlers
 from app.middleware.origin import OriginValidationMiddleware
 from app.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware
@@ -49,9 +50,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         enabled=settings.rate_limiting_enabled,
         redis=get_redis() if settings.rate_limiting_enabled else None,
     )
+    # Background syncing. Started last, so it never runs against a process
+    # whose encryption or rate limiting failed to configure.
+    scheduler = start_scheduler(settings)
+
     try:
         yield
     finally:
+        # Stopped first and awaited, so shutdown does not tear the event loop
+        # down underneath a sync that is mid-write.
+        await stop_scheduler(scheduler)
         await dispose_engine()
         await close_redis()
         logger.info("app.shutdown")

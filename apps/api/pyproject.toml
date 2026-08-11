@@ -21,6 +21,11 @@ dependencies = [
     # AES-256-GCM for credential encryption at rest. The reference Python
     # implementation; no hand-rolled crypto anywhere in this codebase.
     "cryptography>=44.0.0",
+    # MySQL connector driver. Pure-Python (PyMySQL underneath), so it needs no
+    # build toolchain in the container, and it accepts an ssl.SSLContext
+    # directly — which is what lets the TLS policy be expressed explicitly
+    # rather than through driver-specific flags.
+    "aiomysql>=0.2.0",
 ]
 
 [project.optional-dependencies]
@@ -86,6 +91,12 @@ exclude = ["alembic/versions/"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 disallow_untyped_defs = false
+
+# aiomysql ships no type information. Narrowed to that one module rather than
+# relaxed globally, so everything else stays strictly checked.
+[[tool.mypy.overrides]]
+module = ["aiomysql.*"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
 # Pytest

@@ -5,13 +5,26 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
-import { createSource, type DataSource, type SslMode } from "@/lib/sources";
+import {
+  createSource,
+  DEFAULT_PORTS,
+  SOURCE_KIND_LABELS,
+  type DataSource,
+  type SourceKind,
+  type SslMode,
+} from "@/lib/sources";
+
+const SOURCE_KINDS: { value: SourceKind; description: string }[] = [
+  { value: "postgresql", description: "Reads over TLS from a read-only role." },
+  { value: "mysql", description: "Reads over TLS from a read-only account." },
+];
 
 const SSL_MODES: { value: SslMode; label: string; description: string }[] = [
   {
     value: "require",
     label: "require",
-    description: "Encrypted. Certificate not verified — fine for a self-signed cert.",
+    description:
+      "Encrypted. Certificate not verified — fine for a self-signed cert.",
   },
   {
     value: "verify-ca",
@@ -21,12 +34,13 @@ const SSL_MODES: { value: SslMode; label: string; description: string }[] = [
   {
     value: "verify-full",
     label: "verify-full",
-    description: "Chain verified and hostname checked. Recommended for production.",
+    description:
+      "Chain verified and hostname checked. Recommended for production.",
   },
 ];
 
 /**
- * PostgreSQL connection form.
+ * Database connection form.
  *
  * The password lives in component state, is sent once, and is never read back:
  * no API response has a field for it. After saving, the interface can only
@@ -44,8 +58,18 @@ export function AddSourceForm({
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<SourceKind>("postgresql");
   const [host, setHost] = useState("");
-  const [port, setPort] = useState("5432");
+  const [port, setPort] = useState(String(DEFAULT_PORTS.postgresql));
+  // Tracks whether the operator has typed their own port. Switching source
+  // type should move the default, but must never overwrite a port someone
+  // deliberately entered.
+  const [portEdited, setPortEdited] = useState(false);
+
+  function selectKind(next: SourceKind) {
+    setKind(next);
+    if (!portEdited) setPort(String(DEFAULT_PORTS[next]));
+  }
   const [database, setDatabase] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -64,10 +88,10 @@ export function AddSourceForm({
     try {
       const source = await createSource({
         name,
-        kind: "postgresql",
+        kind,
         connection: {
           host: host.trim(),
-          port: Number(port) || 5432,
+          port: Number(port) || DEFAULT_PORTS[kind],
           database: database.trim(),
           username: username.trim(),
           password,
@@ -80,9 +104,15 @@ export function AddSourceForm({
       onCreated(source);
     } catch (caught) {
       if (caught instanceof ApiError) {
-        if (caught.code === "VALIDATION_ERROR" && Array.isArray(caught.details)) {
+        if (
+          caught.code === "VALIDATION_ERROR" &&
+          Array.isArray(caught.details)
+        ) {
           const mapped: Record<string, string> = {};
-          for (const entry of caught.details as { loc?: string[]; msg?: string }[]) {
+          for (const entry of caught.details as {
+            loc?: string[];
+            msg?: string;
+          }[]) {
             const field = entry.loc?.[entry.loc.length - 1];
             if (field && entry.msg) {
               mapped[field] = entry.msg.replace(/^Value error,\s*/, "");
@@ -102,7 +132,10 @@ export function AddSourceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <Field label="Source name" hint="How this database appears in RealitySync.">
+      <Field
+        label="Source name"
+        hint="How this database appears in RealitySync."
+      >
         {({ inputId, describedBy }) => (
           <Input
             id={inputId}
@@ -115,6 +148,37 @@ export function AddSourceForm({
           />
         )}
       </Field>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium text-foreground">
+          Source type
+        </legend>
+        <div className="grid gap-1.5 pt-1 sm:grid-cols-2">
+          {SOURCE_KINDS.map((option) => (
+            <label
+              key={option.value}
+              className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 transition-colors duration-150 hover:bg-muted has-[:checked]:border-border-strong has-[:checked]:bg-muted"
+            >
+              <input
+                type="radio"
+                name="kind"
+                value={option.value}
+                checked={kind === option.value}
+                onChange={() => selectKind(option.value)}
+                className="mt-0.5 accent-[var(--color-accent-cyan)]"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm text-foreground">
+                  {SOURCE_KIND_LABELS[option.value]}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
         <Field label="Host" error={fieldErrors.host}>
@@ -142,7 +206,10 @@ export function AddSourceForm({
               min={1}
               max={65535}
               value={port}
-              onChange={(event) => setPort(event.target.value)}
+              onChange={(event) => {
+                setPortEdited(true);
+                setPort(event.target.value);
+              }}
               required
             />
           )}
@@ -203,7 +270,9 @@ export function AddSourceForm({
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium text-foreground">TLS mode</legend>
+        <legend className="text-sm font-medium text-foreground">
+          TLS mode
+        </legend>
         <p className="text-xs text-muted-foreground">
           RealitySync will not connect to a database without encryption, so
           there is no option to disable TLS.
@@ -245,7 +314,12 @@ export function AddSourceForm({
         <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : "Save source"}
         </Button>
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onCancel}
+          disabled={submitting}
+        >
           Cancel
         </Button>
       </div>

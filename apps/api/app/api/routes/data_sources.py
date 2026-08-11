@@ -27,9 +27,9 @@ from app.api.deps import (
     enforce_csrf,
 )
 from app.connectors.base import DataConnector
-from app.connectors.registry import build_connector
 from app.connectors.types import ConnectorError, DiscoveredSchema
 from app.core.logging import get_logger
+from app.ingestion.connection import open_connector
 from app.ingestion.sync import run_sync
 from app.models.data_source import DataSource, SourceKind, SourceStatus
 from app.models.observation import Observation
@@ -53,7 +53,7 @@ from app.schemas.data_source import (
     UpdateStreamRequest,
 )
 from app.services import audit
-from app.services.credentials import load_credentials, store_credentials
+from app.services.credentials import store_credentials
 
 logger = get_logger(__name__)
 
@@ -125,23 +125,19 @@ async def _load_stream(
     return stream
 
 
-async def _open_connector(db: DbSession, source: DataSource) -> DataConnector:
-    """Build and connect a connector for `source`.
-
-    The only path that decrypts a credential. The plaintext exists as a local
-    for the duration of one call and is handed straight to the factory.
-    """
-    credentials = await load_credentials(db, data_source=source)
-    connector = build_connector(kind=source.kind, config=source.config, credentials=credentials)
-    await connector.connect()
-    return connector
+#: Fallback ports, used only if a stored config predates the port becoming
+#: required. Keyed by kind so a MySQL source never reports PostgreSQL's port.
+_DEFAULT_PORTS: dict[str, int] = {
+    SourceKind.POSTGRESQL.value: 5432,
+    SourceKind.MYSQL.value: 3306,
+}
 
 
 def _connection_summary(source: DataSource) -> ConnectionSummary:
     config: dict[str, Any] = source.config or {}
     return ConnectionSummary(
         host=str(config.get("host", "")),
-        port=int(config.get("port", 5432)),
+        port=int(config.get("port", _DEFAULT_PORTS.get(source.kind, 5432))),
         database=str(config.get("database", "")),
         username=str(config.get("username", "")),
         ssl_mode=str(config.get("ssl_mode", "require")),
@@ -422,7 +418,7 @@ async def test_connection(
 
     connector: DataConnector | None = None
     try:
-        connector = await _open_connector(db, source)
+        connector = await open_connector(db, source)
         result = await connector.test_connection()
 
         source.status = SourceStatus.CONNECTED.value
@@ -494,7 +490,7 @@ async def discover_schema(
 
     connector: DataConnector | None = None
     try:
-        connector = await _open_connector(db, source)
+        connector = await open_connector(db, source)
         discovered = await connector.discover_schema(include_system_schemas=include_system_schemas)
     except ConnectorError as exc:
         source.status = SourceStatus.ERROR.value
@@ -774,7 +770,7 @@ async def trigger_sync(
         )
 
     async def builder() -> DataConnector:
-        return await _open_connector(db, source)
+        return await open_connector(db, source)
 
     outcome = await run_sync(
         db,

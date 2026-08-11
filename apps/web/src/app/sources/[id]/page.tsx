@@ -5,7 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { SchemaExplorer } from "@/components/sources/schema-explorer";
-import { SourceStatusBadge, SyncStatusBadge } from "@/components/sources/status-badge";
+import {
+  SourceStatusBadge,
+  SyncStatusBadge,
+} from "@/components/sources/status-badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,6 +48,13 @@ type State =
  * The whole Phase 3 vertical slice is visible on this one page, in the order
  * it happens — connect, discover, configure, sync, observe.
  */
+/** "30s", "5m", "2h" — the shortest honest rendering of an interval. */
+function formatInterval(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
 export default function SourceDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -52,7 +62,9 @@ export default function SourceDetailPage() {
 
   const [state, setState] = useState<State>({ kind: "loading" });
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(
+    null,
+  );
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<SyncRun | null>(null);
@@ -65,11 +77,17 @@ export default function SourceDetailPage() {
         listSyncRuns(sourceId),
         listObservations(sourceId),
       ]);
-      setState({ kind: "ready", data: { source, streams, runs, observations } });
+      setState({
+        kind: "ready",
+        data: { source, streams, runs, observations },
+      });
     } catch (error) {
       setState({
         kind: "error",
-        message: error instanceof ApiError ? error.message : "Could not load this source.",
+        message:
+          error instanceof ApiError
+            ? error.message
+            : "Could not load this source.",
       });
     }
   }, [sourceId]);
@@ -95,7 +113,9 @@ export default function SourceDetailPage() {
         warnings: [],
         error_code: null,
         error_message:
-          error instanceof ApiError ? error.message : "The connection test failed.",
+          error instanceof ApiError
+            ? error.message
+            : "The connection test failed.",
         remediation: null,
       });
     } finally {
@@ -111,7 +131,9 @@ export default function SourceDetailPage() {
     try {
       setLastRun(await runSync(sourceId));
     } catch (error) {
-      setSyncError(error instanceof ApiError ? error.message : "The sync failed.");
+      setSyncError(
+        error instanceof ApiError ? error.message : "The sync failed.",
+      );
     } finally {
       setSyncing(false);
       void load();
@@ -184,7 +206,12 @@ export default function SourceDetailPage() {
           title="Connection"
           description="Credentials are encrypted at rest and are never returned by the API."
           action={
-            <Button variant="secondary" size="sm" onClick={() => void handleTest()} disabled={testing}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleTest()}
+              disabled={testing}
+            >
               {testing ? "Testing…" : "Test connection"}
             </Button>
           }
@@ -208,7 +235,9 @@ export default function SourceDetailPage() {
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">
                   {label}
                 </dt>
-                <dd className="tabular mt-1 break-all text-sm text-foreground">{value}</dd>
+                <dd className="tabular mt-1 break-all text-sm text-foreground">
+                  {value}
+                </dd>
               </div>
             ))}
           </dl>
@@ -228,7 +257,10 @@ export default function SourceDetailPage() {
                     {testResult.latency_ms}ms
                   </p>
                   {testResult.warnings.map((warning) => (
-                    <p key={warning} className="mt-2 text-xs text-status-degraded">
+                    <p
+                      key={warning}
+                      className="mt-2 text-xs text-status-degraded"
+                    >
                       {warning}
                     </p>
                   ))}
@@ -280,7 +312,15 @@ export default function SourceDetailPage() {
                       key: {stream.primary_key_columns.join(", ")} · time:{" "}
                       {stream.event_time_column ?? "ingestion"} (
                       {stream.event_time_semantics}) ·{" "}
-                      {stream.observation_count.toLocaleString()} observations
+                      {stream.observation_count.toLocaleString()} observations ·{" "}
+                      {/* The poll interval is honoured by the scheduler, so it
+                          has to be visible: an operator cannot otherwise tell
+                          how fresh this stream is meant to be. A disabled
+                          stream is not polled at all, and says so rather than
+                          showing an interval it does not follow. */}
+                      {stream.enabled
+                        ? `every ${formatInterval(stream.poll_interval_seconds)}`
+                        : "not scheduled"}
                     </p>
                   </div>
                   <Button
@@ -304,7 +344,10 @@ export default function SourceDetailPage() {
           description="Read from the database catalog. No table data is read."
         />
         <PanelBody className="p-0">
-          <SchemaExplorer sourceId={sourceId} onStreamCreated={() => void load()} />
+          <SchemaExplorer
+            sourceId={sourceId}
+            onStreamCreated={() => void load()}
+          />
         </PanelBody>
       </Panel>
 
@@ -343,8 +386,9 @@ export default function SourceDetailPage() {
             >
               <p className="text-sm text-foreground">
                 {lastRun.rows_created} new{" "}
-                {lastRun.rows_created === 1 ? "observation" : "observations"} from{" "}
-                {lastRun.rows_seen} {lastRun.rows_seen === 1 ? "row" : "rows"}
+                {lastRun.rows_created === 1 ? "observation" : "observations"}{" "}
+                from {lastRun.rows_seen}{" "}
+                {lastRun.rows_seen === 1 ? "row" : "rows"}
                 {lastRun.rows_skipped > 0
                   ? ` · ${lastRun.rows_skipped} already recorded`
                   : ""}
@@ -363,15 +407,19 @@ export default function SourceDetailPage() {
                     <SyncStatusBadge status={run.status} />
                     <p className="tabular mt-1 text-xs text-muted-foreground">
                       {new Date(run.started_at).toLocaleString()}
-                      {run.duration_ms !== null ? ` · ${run.duration_ms}ms` : ""}
+                      {run.duration_ms !== null
+                        ? ` · ${run.duration_ms}ms`
+                        : ""}
                     </p>
                     {run.error_message ? (
-                      <p className="mt-1 text-xs text-status-down">{run.error_message}</p>
+                      <p className="mt-1 text-xs text-status-down">
+                        {run.error_message}
+                      </p>
                     ) : null}
                   </div>
                   <p className="tabular shrink-0 text-xs text-muted-foreground">
-                    {run.rows_seen} seen · {run.rows_created} new · {run.rows_skipped}{" "}
-                    skipped
+                    {run.rows_seen} seen · {run.rows_created} new ·{" "}
+                    {run.rows_skipped} skipped
                   </p>
                 </li>
               ))}
@@ -406,7 +454,8 @@ export default function SourceDetailPage() {
                       {observation.external_id}
                     </p>
                     <p className="tabular text-xs text-muted-foreground">
-                      event {new Date(observation.event_time).toLocaleString()} · ingested{" "}
+                      event {new Date(observation.event_time).toLocaleString()}{" "}
+                      · ingested{" "}
                       {new Date(observation.ingested_at).toLocaleString()}
                     </p>
                   </div>
@@ -426,7 +475,11 @@ export default function SourceDetailPage() {
           title="Remove source"
           description="Deletes the source, its credentials, streams and observations. This cannot be undone."
           action={
-            <Button variant="secondary" size="sm" onClick={() => void handleDelete()}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleDelete()}
+            >
               Delete source
             </Button>
           }

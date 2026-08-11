@@ -65,6 +65,29 @@ services:
       retries: 10
       start_period: 10s
 
+  # Second *source* type. Test infrastructure, not product data — see the
+  # Dockerfile. Exists so "a new connector needs no downstream changes" is
+  # demonstrated against a real server rather than asserted.
+  source-mysql:
+    build:
+      context: ./infra/test-source-mysql
+    container_name: realitysync-source-mysql
+    profiles: ["dev-source"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SOURCE_MYSQL_ROOT_PASSWORD:-change-me-locally}
+      MYSQL_DATABASE: ${SOURCE_MYSQL_DB:-source_demo}
+    ports:
+      - "${SOURCE_MYSQL_PORT:-3308}:3306"
+    volumes:
+      - source_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${SOURCE_MYSQL_ROOT_PASSWORD:-change-me-locally}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
   redis:
     image: redis:7-alpine
     container_name: realitysync-redis
@@ -121,6 +144,11 @@ services:
       # production is one nobody has actually tested. It fails open, so a
       # stopped redis container degrades it rather than blocking sign-in.
       RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-true}
+      # Background syncing. On by default so the scheduled path is the one
+      # exercised during development, rather than a code path that only ever
+      # runs in production.
+      SYNC_SCHEDULER_ENABLED: ${SYNC_SCHEDULER_ENABLED:-true}
+      SYNC_SCHEDULER_TICK_SECONDS: ${SYNC_SCHEDULER_TICK_SECONDS:-30}
       # Validated at startup; the process refuses to boot if it is unusable.
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-cmVhbGl0eXN5bmMtZGV2ZWxvcG1lbnQta2V5LW9ubHk=}
     ports:
@@ -164,6 +192,7 @@ services:
 
 volumes:
   postgres_data:
+  source_mysql_data:
   source_postgres_data:
   web_node_modules:
   web_next_cache:

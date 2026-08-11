@@ -32,9 +32,16 @@ if TYPE_CHECKING:
 
 
 class SourceKind(enum.StrEnum):
-    """Connector implementations. PostgreSQL is the first."""
+    """Connector implementations.
+
+    Adding one is a value here plus a registry entry. Nothing in ingestion or
+    the engine branches on this — they resolve a connector by string through
+    the registry — which is what keeps a new source type from rippling
+    downstream.
+    """
 
     POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
 
 
 class SourceStatus(enum.StrEnum):

@@ -9,11 +9,24 @@
 
 import { apiFetch } from "@/lib/api";
 
-export type SourceKind = "postgresql";
+export type SourceKind = "postgresql" | "mysql";
+
+/** Default port per source type, so the form never offers the wrong one. */
+export const DEFAULT_PORTS: Record<SourceKind, number> = {
+  postgresql: 5432,
+  mysql: 3306,
+};
+
+/** How each type is named in the interface. */
+export const SOURCE_KIND_LABELS: Record<SourceKind, string> = {
+  postgresql: "PostgreSQL",
+  mysql: "MySQL",
+};
 export type SourceStatus = "configured" | "connected" | "error" | "disabled";
 export type SslMode = "require" | "verify-ca" | "verify-full";
 export type EventTimeSemantics = "observed" | "recorded" | "ingest_fallback";
-export type SyncStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+export type SyncStatus =
+  "pending" | "running" | "completed" | "failed" | "skipped";
 
 /** What the API returns about a connection — never the password. */
 export interface ConnectionSummary {
@@ -205,7 +218,9 @@ export function discoverSchema(id: string): Promise<SchemaDiscovery> {
 }
 
 export function listStreams(id: string): Promise<SourceStream[]> {
-  return apiFetch<SourceStream[]>(`${base}/${id}/streams`, { cache: "no-store" });
+  return apiFetch<SourceStream[]>(`${base}/${id}/streams`, {
+    cache: "no-store",
+  });
 }
 
 export function createStream(

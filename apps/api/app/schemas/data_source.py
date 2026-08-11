@@ -25,18 +25,28 @@ Identifier = Annotated[str, Field(min_length=1, max_length=128)]
 # --- Requests --------------------------------------------------------------
 
 
-class PostgresConnectionInput(BaseModel):
+class DatabaseConnectionInput(BaseModel):
     """Connection parameters supplied when creating a source.
 
     The password is here — it has to arrive somehow — and this is the only
     model in the API that carries one. It is a *request* type; nothing
     serialises it back.
+
+    Shared by both database connectors. The parameters genuinely are the same
+    five, and the TLS policy is identical; splitting the model per source type
+    would duplicate the security-relevant validation, which is the last thing
+    worth having two copies of. A connector whose shape is not host/port/
+    database/user (a REST source, a file drop) will need its own model — but
+    inventing that abstraction before there is a second shape to fit would be
+    guessing at it.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     host: Annotated[str, Field(min_length=1, max_length=253)]
-    port: Annotated[int, Field(ge=1, le=65535)] = 5432
+    #: No default. The right port depends on the source type, and defaulting to
+    #: PostgreSQL's would silently point a MySQL source at 5432.
+    port: Annotated[int, Field(ge=1, le=65535)]
     database: Identifier
     username: Identifier
     password: Annotated[str, Field(min_length=1, max_length=1024)]
@@ -60,8 +70,8 @@ class CreateDataSourceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Annotated[str, Field(min_length=1, max_length=200)]
-    kind: Literal["postgresql"] = "postgresql"
-    connection: PostgresConnectionInput
+    kind: Literal["postgresql", "mysql"] = "postgresql"
+    connection: DatabaseConnectionInput
 
     @field_validator("name")
     @classmethod

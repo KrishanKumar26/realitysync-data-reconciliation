@@ -132,4 +132,4 @@ async def anonymous_client(app: FastAPI) -> AsyncIterator[AsyncClient]:
 # Fixtures for the disposable *source* PostgreSQL that connector tests read
 # from. See tests/source_db.py for the distinction between test infrastructure
 # and product data.
-pytest_plugins = ["tests.source_db"]
+pytest_plugins = ["tests.source_db", "tests.source_mysql"]

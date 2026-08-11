@@ -135,6 +135,18 @@ class Settings(BaseSettings):
     connector_max_rows_per_sync: int = 50_000
     connector_fetch_batch_size: int = 1_000
 
+    # --- Sync scheduler ---------------------------------------------------
+    #: Runs due streams in the background, honouring each stream's
+    #: poll_interval_seconds. Off means sources refresh only when someone
+    #: presses Sync now; nothing is lost, data is simply staler.
+    sync_scheduler_enabled: bool = True
+    #: How often the loop looks for due work. Not the poll interval — that is
+    #: per stream. This only bounds how late a due sync can start.
+    sync_scheduler_tick_seconds: int = 30
+    #: Ceiling per tick, so a deployment with many due sources spreads the
+    #: load instead of opening every customer connection at once.
+    sync_scheduler_max_sources_per_tick: int = 5
+
     # --- Secrets ----------------------------------------------------------
     # Placeholder default; _enforce_production_hardening rejects it in production.
     secret_key: str = "dev-only-insecure-change-me"  # noqa: S105

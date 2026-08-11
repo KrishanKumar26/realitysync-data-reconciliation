@@ -95,7 +95,7 @@ export default function OverviewPage() {
           <PanelBody className="p-0">
             <EmptyState
               title="Nothing connected yet"
-              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL database to begin producing observations — everything on this page is derived from them."
+              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to begin producing observations — everything on this page is derived from them."
               action={
                 <Link href="/sources">
                   <Button>Connect a source</Button>

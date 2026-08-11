@@ -10,7 +10,11 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ApiError } from "@/lib/api";
-import { listSources, type DataSource } from "@/lib/sources";
+import {
+  listSources,
+  type DataSource,
+  SOURCE_KIND_LABELS,
+} from "@/lib/sources";
 
 type State =
   | { kind: "loading" }
@@ -35,7 +39,9 @@ export default function SourcesPage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not load data sources.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load data sources.",
       });
     }
   }, []);
@@ -61,7 +67,7 @@ export default function SourcesPage() {
       {adding ? (
         <Panel className="animate-rise">
           <PanelHeader
-            title="Connect a PostgreSQL database"
+            title="Connect a database"
             description="RealitySync connects outbound over TLS and reads only what you configure."
           />
           <PanelBody>
@@ -104,8 +110,10 @@ export default function SourcesPage() {
           <PanelBody className="p-0">
             <EmptyState
               title="No sources connected"
-              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL database to begin producing observations."
-              action={<Button onClick={() => setAdding(true)}>Add source</Button>}
+              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to begin producing observations."
+              action={
+                <Button onClick={() => setAdding(true)}>Add source</Button>
+              }
             />
           </PanelBody>
         </Panel>
@@ -125,8 +133,14 @@ export default function SourcesPage() {
                       {source.name}
                     </p>
                     <p className="tabular mt-1 truncate text-xs text-muted-foreground">
+                      {/* The source type leads the line: with more than one
+                          kind connected, "which system is this" is the first
+                          thing an operator needs, and host:port alone does
+                          not answer it. */}
+                      {SOURCE_KIND_LABELS[source.kind]} ·{" "}
                       {source.connection.host}:{source.connection.port}/
-                      {source.connection.database} · {source.connection.ssl_mode}
+                      {source.connection.database} ·{" "}
+                      {source.connection.ssl_mode}
                     </p>
                   </div>
                   <SourceStatusBadge status={source.status} />
@@ -135,7 +149,9 @@ export default function SourcesPage() {
                 <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-1.5 text-xs">
                   <div className="flex gap-1.5">
                     <dt className="text-muted-foreground">Streams</dt>
-                    <dd className="tabular text-foreground">{source.stream_count}</dd>
+                    <dd className="tabular text-foreground">
+                      {source.stream_count}
+                    </dd>
                   </div>
                   <div className="flex gap-1.5">
                     <dt className="text-muted-foreground">Observations</dt>
@@ -154,7 +170,9 @@ export default function SourcesPage() {
                 </dl>
 
                 {source.last_error ? (
-                  <p className="mt-2.5 text-xs text-status-down">{source.last_error}</p>
+                  <p className="mt-2.5 text-xs text-status-down">
+                    {source.last_error}
+                  </p>
                 ) : null}
               </Link>
             </li>

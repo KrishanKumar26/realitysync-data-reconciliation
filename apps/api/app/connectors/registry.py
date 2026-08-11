@@ -49,10 +49,12 @@ def _install_builtin_connectors() -> None:
     stays free of implementation dependencies — the import direction that keeps
     core logic independent of any particular source type.
     """
+    from app.connectors.mysql.factory import MysqlConnectorFactory
     from app.connectors.postgres.factory import PostgresConnectorFactory
     from app.models.data_source import SourceKind
 
     register(SourceKind.POSTGRESQL.value, PostgresConnectorFactory())
+    register(SourceKind.MYSQL.value, MysqlConnectorFactory())
 
 
 _install_builtin_connectors()
