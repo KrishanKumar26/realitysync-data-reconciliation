@@ -44,9 +44,11 @@ from app.services.auth import (
     switch_organization,
 )
 from app.services.rate_limit import (
-    LOGIN_POLICY,
     REGISTRATION_POLICY,
+    RateLimitPolicy,
+    RateLimitVerdict,
     get_rate_limiter,
+    login_policy,
 )
 
 logger = get_logger(__name__)
@@ -57,6 +59,21 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 #: from "wrong password" turns the login endpoint into a user-enumeration
 #: oracle, which is a reconnaissance gift for credential stuffing.
 _INVALID_CREDENTIALS = "Invalid email or password."
+
+
+def _rate_limit_headers(policy: RateLimitPolicy, verdict: RateLimitVerdict) -> dict[str, str]:
+    """Standard rate-limit headers for a refused request.
+
+    ``Retry-After`` is the value a well-behaved client actually backs off on,
+    and it reflects when capacity genuinely returns rather than a flat guess.
+    The ``X-RateLimit-*`` trio is what operators and dashboards read.
+    """
+    return {
+        "Retry-After": str(verdict.retry_after_seconds or policy.window_seconds),
+        "X-RateLimit-Limit": str(policy.max_attempts),
+        "X-RateLimit-Remaining": str(verdict.remaining),
+        "X-RateLimit-Window": str(policy.window_seconds),
+    }
 
 
 async def _session_payload(db: DbSession, context: AuthContext) -> AuthenticatedSessionResponse:
@@ -108,6 +125,7 @@ async def register(
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many registration attempts. Try again later.",
+            headers=_rate_limit_headers(REGISTRATION_POLICY, verdict),
         )
 
     try:
@@ -190,18 +208,18 @@ async def login(
     settings: AppSettings,
 ) -> AuthenticatedSessionResponse:
     """Authenticate and issue a session."""
+    # Keyed on IP *and* email: keying on IP alone would let one attacker
+    # behind a shared NAT lock out an entire office, and keying on email alone
+    # would let an attacker lock any account they can name.
+    policy = login_policy(settings)
     verdict = await get_rate_limiter().check(
-        LOGIN_POLICY, f"{audit.client_ip(request) or 'unknown'}:{payload.email}"
+        policy, f"{audit.client_ip(request) or 'unknown'}:{payload.email}"
     )
     if not verdict.allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many sign-in attempts. Try again later.",
-            headers=(
-                {"Retry-After": str(verdict.retry_after_seconds)}
-                if verdict.retry_after_seconds
-                else None
-            ),
+            headers=_rate_limit_headers(policy, verdict),
         )
 
     try:

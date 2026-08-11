@@ -111,8 +111,15 @@ Synchronisation and idempotency use PostgreSQL instead — advisory locks and
 unique constraints. **Redis unavailable means degraded, never broken, never
 wrong.** Every key is reconstructible from PostgreSQL.
 
-Status: connectivity only in Phase 1; the three uses arrive with the features
-that need them.
+Status: connectivity in Phase 1; rate limiting implemented in Phase 7. SSE
+fan-out and realtime tickets arrive with the features that need them.
+
+The rate limiter is where the rule above stops being a slogan. It fails open:
+when Redis is unreachable, every request is allowed, and the fact that nothing
+is being counted is reported on `/api/system/status` rather than left to be
+inferred. A limiter that denied requests during a cache outage would have
+converted a degradation into a total login outage, which is the failure mode
+the rule exists to prevent.
 
 ---
 
@@ -134,7 +141,7 @@ that need them.
 | Multi-tenant isolation  | Implemented — composite FK, ORM scope guard, route context |
 | Audit trail             | Implemented — append-only, nullable tenant                 |
 | Frontend auth shell     | Implemented — sign-in, org selector, sign-out, states      |
-| Rate limiting           | Seam only — Redis implementation in a later phase          |
+| Rate limiting           | Implemented — Redis sliding window, fails open (Phase 7)   |
 | Connector interface     | Implemented — DataConnector, types, registry (Phase 3)     |
 | PostgreSQL connector    | Implemented — TLS-only, read-only, catalog discovery       |
 | Credential encryption   | Implemented — AES-256-GCM, row-bound, rotatable            |

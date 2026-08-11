@@ -102,8 +102,10 @@ class Settings(BaseSettings):
     argon2_parallelism: int = 1
 
     # --- Rate limiting ----------------------------------------------------
-    # The seam exists now; the Redis-backed implementation belongs to the
-    # phase that owns Redis rate limiting. See app/services/rate_limit.py.
+    #: Redis-backed sliding window. Disable only when rate limiting is
+    #: terminated at the edge (a CDN or gateway); disabling it here with
+    #: nothing in front leaves the login endpoint unprotected.
+    rate_limiting_enabled: bool = True
     login_rate_limit_attempts: int = 10
     login_rate_limit_window_seconds: int = 300
 

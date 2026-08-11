@@ -46,8 +46,15 @@ def error_response(
     request_id: str | None,
     code: str | None = None,
     details: Any = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
-    """Build an error envelope response."""
+    """Build an error envelope response.
+
+    ``headers`` carries response headers that are part of the error's meaning
+    rather than decoration — ``Retry-After`` on a 429, ``WWW-Authenticate`` on a
+    401. A handler that returns the right status and drops those headers has
+    told the client what went wrong but not what to do about it.
+    """
     payload: dict[str, Any] = {
         "error": {
             "code": code or _STATUS_CODES.get(status_code, "ERROR"),
@@ -56,7 +63,7 @@ def error_response(
             "request_id": request_id,
         }
     }
-    return JSONResponse(status_code=status_code, content=payload)
+    return JSONResponse(status_code=status_code, content=payload, headers=headers)
 
 
 def _request_id(request: Request) -> str | None:
@@ -106,6 +113,10 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             message=detail,
             request_id=_request_id(request),
+            # Preserved rather than discarded: raising a 429 with Retry-After
+            # and serving it without the header leaves a client guessing when
+            # to come back, which is how a rate limit turns into a retry storm.
+            headers=dict(exc.headers) if exc.headers else None,
         )
 
     @app.exception_handler(RequestValidationError)

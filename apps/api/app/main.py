@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import root_router
-from app.cache.redis import close_redis
+from app.cache.redis import close_redis, get_redis
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import dispose_engine
@@ -17,6 +17,7 @@ from app.middleware.errors import register_exception_handlers
 from app.middleware.origin import OriginValidationMiddleware
 from app.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware
 from app.services.credentials import validate_encryption_at_startup
+from app.services.rate_limit import configure_rate_limiting
 
 logger = get_logger(__name__)
 
@@ -40,6 +41,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # decrypt source credentials must refuse to start rather than discover the
     # problem one failed sync at a time, in production, with no obvious cause.
     validate_encryption_at_startup(settings)
+
+    # Install the rate limiter. The Redis client is created lazily, so this
+    # does not require Redis to be reachable at boot — the limiter fails open
+    # if it is not, which is the documented Redis posture.
+    configure_rate_limiting(
+        enabled=settings.rate_limiting_enabled,
+        redis=get_redis() if settings.rate_limiting_enabled else None,
+    )
     try:
         yield
     finally:

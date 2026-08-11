@@ -117,6 +117,10 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
       SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-change-me}
+      # On by default, including locally: a limiter that is only exercised in
+      # production is one nobody has actually tested. It fails open, so a
+      # stopped redis container degrades it rather than blocking sign-in.
+      RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-true}
       # Validated at startup; the process refuses to boot if it is unusable.
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-cmVhbGl0eXN5bmMtZGV2ZWxvcG1lbnQta2V5LW9ubHk=}
     ports:
