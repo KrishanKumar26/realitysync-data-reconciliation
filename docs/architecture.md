@@ -146,7 +146,7 @@ the rule exists to prevent.
 | API client              | Implemented — typed, correlated, timeouts, error mapping   |
 | Identity and tenancy    | Implemented — users, organizations, memberships (Phase 2)  |
 | Authentication          | Implemented — Argon2id, server-side sessions, CSRF         |
-| Multi-tenant isolation  | Implemented — composite FK, ORM scope guard, route context |
+| Multi-tenant isolation  | Implemented and adversarially audited (Phase 11); see security.md |
 | Audit trail             | Implemented — append-only, nullable tenant                 |
 | Frontend auth shell     | Implemented — sign-in, org selector, sign-out, states      |
 | Rate limiting           | Implemented — Redis sliding window, fails open (Phase 7)   |
@@ -178,4 +178,6 @@ Organizations are tenants; memberships connect users to them; sessions carry
 the active organization. Isolation is enforced three times over — in the
 database, in the ORM session, and in route signatures — because a single layer
 that can be bypassed by one forgotten `WHERE` clause is not a control. The full
-model is documented in [phase-2-authentication.md](phase-2-authentication.md).
+model is documented in [phase-2-authentication.md](phase-2-authentication.md),
+and the adversarial audit of it — including four guard bypasses found and fixed
+in Phase 11, and the limitations that remain — is in [security.md](security.md).

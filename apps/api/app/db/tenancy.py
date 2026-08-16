@@ -14,6 +14,11 @@ So the rule is enforced by the session itself:
   touches a tenant-owned table without constraining that table's
   ``organization_id``, it raises :class:`MissingOrganizationScopeError` instead
   of returning rows.
+
+  "Constraining" means comparing ``organization_id`` with ``==`` or ``IN``
+  against a **bound value**. Merely mentioning the column is not enough - see
+  :func:`_pins_a_tenant` for the shapes that mention it and scope nothing, all
+  of which were verified to bypass an earlier version of this guard.
 * :func:`unscoped` is the only way past the guard, it must be used deliberately,
   and every use is expected to carry a comment justifying it.
 
@@ -21,11 +26,19 @@ The guard is a backstop, not a substitute for writing the filter. Application
 code should still scope explicitly — but now forgetting is a loud failure in
 development and in tests rather than a quiet breach in production.
 
-Known limitation: the guard inspects WHERE and JOIN-ON clauses of the emitted
-statement. A tenant-owned table reached only through a correlated subquery in a
-SELECT list would not be detected. Filters written normally are covered, and
-the schema-level defences (NOT NULL ``organization_id``, the composite session
-foreign key) hold regardless.
+Known limitations, stated so nobody mistakes the backstop for the whole
+defence. The full list, with what was and was not tested, is in
+docs/security.md:
+
+* A tenant-owned table reached only through a correlated subquery in a SELECT
+  list is not detected.
+* Only shapes are checked, never values. The guard confirms a query pins
+  ``organization_id`` to *some* bound value; that it is the *caller's* value is
+  the route layer's job.
+* Raw ``text()`` SQL and ``INSERT`` are not inspected at all.
+
+The schema-level defences - NOT NULL ``organization_id``, the composite session
+foreign key, ON DELETE CASCADE - hold regardless of any of this.
 """
 
 from __future__ import annotations
@@ -40,8 +53,8 @@ from sqlalchemy import Column, ForeignKey, Table, event
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, Session, declared_attr, mapped_column
 from sqlalchemy.orm.session import ORMExecuteState
-from sqlalchemy.sql import visitors
-from sqlalchemy.sql.expression import Delete, Join, Select, Update
+from sqlalchemy.sql import operators, visitors
+from sqlalchemy.sql.expression import BinaryExpression, BindParameter, Delete, Join, Select, Update
 
 ORGANIZATION_ID = "organization_id"
 
@@ -136,8 +149,55 @@ def _tenant_tables_referenced(statement: Any) -> set[str]:
     return referenced
 
 
+#: Operators that genuinely pin a table to a tenant. Deliberately just these
+#: two. ``!=`` compares against a bound value and reads every *other* tenant,
+#: which is the opposite of scoping; ``IS NOT NULL`` is structurally a filter
+#: and semantically none, since the column is NOT NULL anyway.
+_PINNING_OPERATORS = frozenset({operators.eq, operators.in_op})
+
+
+def _pins_a_tenant(clause: Any) -> set[str]:
+    """Tenant tables that `clause` pins to a specific organization.
+
+    A table counts as constrained only when its ``organization_id`` is compared
+    with ``==`` or ``IN`` **against a bound value**. Presence of the column in a
+    filter is not enough, and this is the point:
+
+        WHERE observations.organization_id = entities.organization_id
+        WHERE observations.organization_id IS NOT NULL
+        WHERE observations.organization_id != :org
+
+    All three mention the column, all three satisfied the previous check, and
+    none of them restricts the query to one tenant. The first two were verified
+    to bypass the guard before this was tightened. Nothing in the application
+    writes queries that way, which is exactly why a guard has to reject them —
+    it exists to catch the query nobody meant to write.
+    """
+    pinned: set[str] = set()
+
+    for element in visitors.iterate(clause):
+        if not isinstance(element, BinaryExpression):
+            continue
+        if element.operator not in _PINNING_OPERATORS:
+            continue
+
+        for side, other in ((element.left, element.right), (element.right, element.left)):
+            if (
+                isinstance(side, Column)
+                and side.name == ORGANIZATION_ID
+                and side.table is not None
+                and side.table.name in TENANT_OWNED_TABLES
+                # The other side must be a value, not another column. Comparing
+                # two tenant tables' organization_id to each other correlates
+                # them without pinning either.
+                and isinstance(other, BindParameter)
+            ):
+                pinned.add(side.table.name)
+    return pinned
+
+
 def _tenant_tables_constrained(statement: Any) -> set[str]:
-    """Tenant-owned table names whose organization_id is referenced in a filter.
+    """Tenant-owned table names whose organization_id is pinned to a tenant.
 
     Three places count, because all three genuinely constrain the rows read:
 
@@ -167,14 +227,7 @@ def _tenant_tables_constrained(statement: Any) -> set[str]:
 
     constrained: set[str] = set()
     for clause in clauses:
-        for element in visitors.iterate(clause):
-            if (
-                isinstance(element, Column)
-                and element.name == ORGANIZATION_ID
-                and element.table is not None
-                and element.table.name in TENANT_OWNED_TABLES
-            ):
-                constrained.add(element.table.name)
+        constrained |= _pins_a_tenant(clause)
     return constrained
 
 
