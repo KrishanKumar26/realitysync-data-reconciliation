@@ -147,9 +147,10 @@ the rule exists to prevent.
 | Credential encryption   | Implemented — AES-256-GCM, row-bound, rotatable            |
 | Observation ingestion   | Implemented — normalised, fingerprinted, idempotent        |
 | Sync runs               | Implemented — advisory-locked, full lifecycle recorded     |
-| Reality Engine          | Structure implemented; scoring blocked on Phase 0 spec      |
+| Reality Engine          | Productionized non-scoring; confidence blocked on Phase 0 spec (Phase 9) |
 | Entity resolution       | Implemented — declared mappings, never inferred (Phase 5)   |
 | Conflict engine         | Detection implemented; grading blocked on Phase 0 spec      |
+| Reality states          | Persisted with evidence and provenance; confidence NULL (Phase 9) |
 | Timeline (bitemporal)   | Implemented — event vs knowledge axis (Phase 5)             |
 | Overview dashboard      | Implemented — real aggregates; confidence panel reports its absence (Phase 6) |
 | MySQL connector         | Implemented — TLS-only, read-only, second source type (Phase 8) |

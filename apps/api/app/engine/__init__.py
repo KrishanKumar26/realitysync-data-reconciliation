@@ -15,6 +15,6 @@ judgement.
 Persistence lives outside, in ``app/services/reality.py``.
 """
 
-from app.engine.engine import CalculationBlocked, calculate
+from app.engine.engine import calculate
 
-__all__ = ["CalculationBlocked", "calculate"]
+__all__ = ["calculate"]

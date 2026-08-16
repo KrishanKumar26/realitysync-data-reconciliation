@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EvidenceTrail } from "@/components/reality/evidence-trail";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,7 +56,9 @@ export default function RealityPage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not load reality states.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load reality states.",
       });
     }
   }, [entityId]);
@@ -75,7 +78,9 @@ export default function RealityPage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "The recalculation failed.",
+          error instanceof ApiError
+            ? error.message
+            : "The recalculation failed.",
       });
     } finally {
       setRunning(false);
@@ -159,7 +164,7 @@ export default function RealityPage() {
           {lastRun?.blocked ? (
             <Panel>
               <PanelHeader
-                title="No reality state could be produced"
+                title="States written without confidence scores"
                 description="The engine ran and reported precisely what is missing."
               />
               <PanelBody className="space-y-4">
@@ -168,13 +173,28 @@ export default function RealityPage() {
                   <span className="tabular text-foreground">
                     {lastRun.attributes_considered}
                   </span>{" "}
-                  {lastRun.attributes_considered === 1 ? "attribute" : "attributes"} and
-                  wrote no state, because the approved confidence specification is
-                  unavailable. Detection still ran:{" "}
+                  {lastRun.attributes_considered === 1
+                    ? "attribute"
+                    : "attributes"}{" "}
+                  and wrote{" "}
+                  <span className="tabular text-foreground">
+                    {lastRun.states_written}
+                  </span>{" "}
+                  {lastRun.states_written === 1 ? "state" : "states"}, of which{" "}
+                  <span className="tabular text-foreground">
+                    {lastRun.states_unscored}
+                  </span>{" "}
+                  {lastRun.states_unscored === 1 ? "carries" : "carry"} no
+                  confidence score, because the approved confidence
+                  specification is unavailable. Everything that follows from the
+                  observations alone — the values, the evidence, the
+                  disagreements — is recorded.{" "}
                   <span className="tabular text-foreground">
                     {lastRun.conflicts_written}
                   </span>{" "}
-                  {lastRun.conflicts_written === 1 ? "conflict was" : "conflicts were"}{" "}
+                  {lastRun.conflicts_written === 1
+                    ? "conflict was"
+                    : "conflicts were"}{" "}
                   recorded, which needs no formula.
                 </p>
 
@@ -187,12 +207,18 @@ export default function RealityPage() {
                 {lastRun.missing_specifications.length > 0 ? (
                   <details className="rounded-md border border-border bg-muted px-4 py-3">
                     <summary className="cursor-pointer text-sm text-foreground">
-                      {lastRun.missing_specifications.length} specifications required
+                      {lastRun.missing_specifications.length} specifications
+                      required
                     </summary>
                     <ul className="mt-3 space-y-2">
                       {lastRun.missing_specifications.map((spec) => (
-                        <li key={spec.name} className="text-xs text-muted-foreground">
-                          <span className="tabular text-foreground">{spec.name}</span>
+                        <li
+                          key={spec.name}
+                          className="text-xs text-muted-foreground"
+                        >
+                          <span className="tabular text-foreground">
+                            {spec.name}
+                          </span>
                           {" — "}
                           {spec.description}
                         </li>
@@ -215,13 +241,13 @@ export default function RealityPage() {
           <Panel>
             <PanelHeader
               title="Reality states"
-              description="One per attribute, with the confidence and the reason it was selected."
+              description="One per attribute, with its evidence and the reason it was selected."
             />
             <PanelBody className={state.states.length > 0 ? "p-0" : undefined}>
               {state.states.length === 0 ? (
                 <EmptyState
                   title="No reality states"
-                  description="Run a recalculation to see what the engine can establish. While the confidence specification is unavailable no state is written, and the run will say so."
+                  description="Run a recalculation to see what the engine can establish. While the confidence specification is unavailable states are still written, with no score and the reason stated."
                   className="py-10"
                 />
               ) : (
@@ -233,12 +259,28 @@ export default function RealityPage() {
                           {realityState.attribute}
                         </span>
                         <span className="tabular text-sm text-foreground">
-                          {realityState.confidence}% · {realityState.status}
+                          {/* Never "0%" and never "null%". An unavailable score
+                              is stated as unavailable — rendering a number here
+                              would be the single most misleading thing this
+                              page could do. */}
+                          {realityState.confidence_available
+                            ? `${realityState.confidence}%`
+                            : "confidence unavailable"}{" "}
+                          · {realityState.status}
                         </span>
                       </div>
-                      <pre className="tabular mt-2 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                        {JSON.stringify(realityState.value, null, 2)}
-                      </pre>
+                      {realityState.value_selected ? (
+                        <pre className="tabular mt-2 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                          {JSON.stringify(realityState.value, null, 2)}
+                        </pre>
+                      ) : (
+                        /* No value was selected. Showing "null" in a value box
+                           would read as "the value is null", which is a
+                           different and false claim. */
+                        <p className="mt-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                          No value selected
+                        </p>
+                      )}
                       <p className="mt-2 text-xs text-muted-foreground">
                         {realityState.selection_reason}
                       </p>
@@ -248,6 +290,11 @@ export default function RealityPage() {
                         {realityState.source_count} sources ·{" "}
                         {realityState.algorithm_version}
                       </p>
+
+                      <EvidenceTrail
+                        entityId={realityState.entity_id}
+                        attribute={realityState.attribute}
+                      />
                     </li>
                   ))}
                 </ul>

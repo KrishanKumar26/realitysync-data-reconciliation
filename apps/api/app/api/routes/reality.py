@@ -23,10 +23,10 @@ from app.api.deps import (
     enforce_csrf,
 )
 from app.core.logging import get_logger
-from app.engine.detection import DetectionResult
 from app.engine.spec import MISSING_SPECIFICATIONS
 from app.models.conflict import Conflict, ConflictStatus
 from app.models.entity import Entity, EntityMapping
+from app.models.observation import Observation
 from app.models.reality_state import RealityState, RealityStateEvidence
 from app.schemas.reality import (
     ConflictResponse,
@@ -236,10 +236,13 @@ async def recalculate_route(
 ) -> RecalculateResponse:
     """Run the engine over this entity's observations.
 
-    Returns 200 with ``blocked: true`` when the confidence specification is
-    unavailable, rather than an error: the request succeeded and reported
-    exactly what happened. Conflicts detected along the way are still written —
-    disagreement is a fact that needs no formula.
+    States are written whether or not they could be scored. ``blocked`` means
+    "nothing carries a confidence score", not "nothing was written" — the
+    Phase 5 behaviour of writing nothing left the Reality page
+    indistinguishable from an empty workspace.
+
+    Returns 200 rather than an error: the request succeeded and reported
+    exactly what happened.
     """
     await enforce_csrf(request, context.auth, settings)
     await _require_entity(db, context=context, entity_id=entity_id)
@@ -255,11 +258,16 @@ async def recalculate_route(
         states_written=result.states_written,
         conflicts_written=result.conflicts_written,
         calculated_at=result.calculated_at,
-        blocked=bool(result.blocked),
-        blocked_on=sorted({b.missing for b in result.blocked}),
+        states_unscored=len(result.unscored),
+        unscored_attributes=[
+            {"attribute": attribute, "blocked_on": missing}
+            for attribute, missing in sorted(result.unscored)
+        ],
+        blocked=bool(result.unscored),
+        blocked_on=sorted({missing for _, missing in result.unscored}),
         missing_specifications=(
             [{"name": n, "description": d} for n, d in MISSING_SPECIFICATIONS]
-            if result.blocked
+            if result.unscored
             else []
         ),
     )
@@ -311,21 +319,41 @@ async def list_evidence_route(
             status_code=status.HTTP_404_NOT_FOUND, detail="No reality state for that attribute."
         )
 
-    rows = await db.scalars(
-        select(RealityStateEvidence).where(
+    # Joined to the observation for provenance. Both organization filters live
+    # in WHERE rather than in the join condition: the ORM tenancy guard cannot
+    # inspect a join's ON clause, so a tenant filter placed there is invisible
+    # to it and would silently stop being enforced.
+    rows = await db.execute(
+        select(RealityStateEvidence, Observation)
+        .join(Observation, Observation.id == RealityStateEvidence.observation_id)
+        .where(
             RealityStateEvidence.organization_id == context.organization_id,
+            Observation.organization_id == context.organization_id,
             RealityStateEvidence.reality_state_id == state.id,
+        )
+        # Total ordering, so the trail reads the same on every request.
+        # Event time first because that is the axis a reader is reasoning
+        # along; observation id last so ties can never reorder.
+        .order_by(
+            Observation.event_time,
+            Observation.ingested_at,
+            RealityStateEvidence.observation_id,
         )
     )
     return [
         EvidenceResponse(
             observation_id=e.observation_id,
+            source_id=observation.source_id,
+            stream_id=observation.stream_id,
+            external_id=observation.external_id,
             role=e.role,
             weight=e.weight,
             observed_value=e.observed_value,
+            event_time=observation.event_time,
+            ingested_at=observation.ingested_at,
             exclusion_reason=e.exclusion_reason,
         )
-        for e in rows
+        for e, observation in rows
     ]
 
 
@@ -358,7 +386,7 @@ async def unscored_attribute_route(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No observations state that attribute for this entity.",
         )
-    if not isinstance(outcome, DetectionResult):
+    if outcome.is_scored:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This attribute is fully scored; read it from the reality endpoint.",

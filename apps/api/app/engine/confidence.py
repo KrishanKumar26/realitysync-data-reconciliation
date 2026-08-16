@@ -111,9 +111,30 @@ def observation_weight(
 ) -> Decimal:
     """``w_o = R_source x Freshness x Quality``.
 
-    Confirmed. Raises if freshness or quality is unspecified.
+    Confirmed. Raises if freshness or quality is unspecified, and also if the
+    observation carries no declared reliability or quality - an undeclared
+    input is not a zero and not a midpoint, it is a missing specification, and
+    substituting a number here would be inventing the reliability table.
     """
+    # The formulas are consulted first, deliberately. An undeclared reliability
+    # is a configuration gap an operator could close today; a missing freshness
+    # curve cannot be closed by anyone without the specification. When both
+    # block, reporting the formula is the more useful answer, because
+    # configuring reliability would not unblock anything on its own.
     freshness = specification.freshness(age_hours)
+
+    if observation.reliability is None:
+        raise SpecificationUnavailableError(
+            "reliability_table",
+            "No reliability is declared for this source, and the table that "
+            "would supply one per authority level is unavailable.",
+        )
+    if observation.quality is None:
+        raise SpecificationUnavailableError(
+            "quality",
+            "No quality is declared for this observation, and its derivation is unavailable.",
+        )
+
     quality = specification.quality(observation.quality, observation.validation_passed)
     weight = observation.reliability * freshness * quality
     return _clamp(weight, Decimal(0), Decimal(1)).quantize(FACTOR_PRECISION)

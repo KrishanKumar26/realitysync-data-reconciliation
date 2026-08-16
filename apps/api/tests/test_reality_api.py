@@ -250,11 +250,21 @@ async def test_timeline_rejects_an_unknown_axis(client: AsyncClient) -> None:
 async def test_recalculate_detects_conflicts_while_scoring_is_blocked(
     client: AsyncClient, db: AsyncSession
 ) -> None:
-    """The Phase 5 payoff.
+    """The Phase 5 payoff, with the Phase 9 correction.
 
-    Confidence cannot be computed, so no reality state is written. But two
-    sources disagreeing is a categorical fact, so the conflict is found and
-    recorded.
+    CHANGED IN PHASE 9. This previously asserted ``states_written == 0``: with
+    scoring blocked, Phase 5 wrote no reality state at all. That behaviour was
+    obsolete rather than wrong. Withholding the *score* is right; withholding
+    the selection, evidence and provenance that need no formula was not, and it
+    left ``reality_states`` empty in every deployment — the Reality page looked
+    identical to an empty workspace.
+
+    A state is now written per attribute with ``confidence`` NULL. What is
+    still withheld is the *selection*: two sources disagree, ranking them
+    requires the missing weights, so the state is CONTESTED with no value.
+
+    The property this test exists for is unchanged: disagreement is found and
+    recorded without any formula, and nothing is scored.
     """
     account = await register(client)
     warehouse, wh_stream = await seed_source(
@@ -289,10 +299,22 @@ async def test_recalculate_detects_conflicts_while_scoring_is_blocked(
     assert response.status_code == 200
     body = response.json()
     assert body["blocked"] is True
-    assert body["states_written"] == 0
+    assert body["states_written"] == 1
+    assert body["states_unscored"] == 1
     assert body["conflicts_written"] >= 1
     assert "freshness" in body["blocked_on"]
     assert any(m["name"] == "conflict_score" for m in body["missing_specifications"])
+
+    # The state exists, says what it knows, and scores nothing.
+    states = await client.get(f"/api/entities/{entity_id}/reality", headers=account.auth_headers())
+    written = states.json()
+    assert len(written) == 1
+    assert written[0]["attribute"] == "quantity"
+    assert written[0]["status"] == "contested"
+    assert written[0]["confidence"] is None
+    assert written[0]["confidence_available"] is False
+    assert written[0]["value_selected"] is False
+    assert written[0]["value"] is None
 
 
 async def test_a_detected_conflict_carries_the_facts_not_a_grade(

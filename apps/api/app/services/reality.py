@@ -9,13 +9,22 @@ Two outcomes, and the difference matters:
 confidence, its full breakdown and one evidence row per observation
 considered. Conflicts are written alongside it, graded.
 
-**Blocked** — the confidence specification is unavailable. **No reality state
-is written.** A row in ``reality_states`` is a claim about the world with a
-confidence attached; writing one without a score would put an unfalsifiable
-assertion into the table every later phase reads. Detected *conflicts* are
-still written, because "these sources disagree" is a fact that needs no
-formula, and withholding it would hide a real problem behind a missing
-constant.
+**Unscored** — the confidence specification is unavailable. The state is
+**still written**, with ``confidence`` NULL and the reason recorded, because
+everything except the score follows from the observations alone: which values
+were asserted, which were superseded, which failed validation, whether the
+sources agree, and — when they all agree — what the value is.
+
+Phase 5 wrote nothing in this case, on the reasoning that a reality state is a
+claim with a confidence attached. The cost of that was concrete:
+``reality_states`` stayed empty in every deployment, and the selection,
+evidence and provenance that need no formula were unreachable. Phase 9 narrows
+the withholding to the part that is actually missing. A NULL confidence with a
+stated reason is not an unfalsifiable assertion — it is an accurate one.
+
+What is still withheld: when two or more values compete, no winner is chosen.
+Ranking them *is* the missing formula, so the state is CONTESTED with a NULL
+value and every candidate recorded as evidence.
 
 Recalculation is idempotent: states are replaced wholesale, conflicts are
 matched on their fingerprint and updated in place. Running the engine twice
@@ -24,10 +33,10 @@ over unchanged observations leaves the database in the same state.
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -35,14 +44,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.engine.conflicts import UNSPECIFIED_SEVERITY
-from app.engine.detection import DetectionResult
-from app.engine.engine import CalculationBlocked, calculate
-from app.engine.spec import UNAVAILABLE_SPECIFICATION, ConfidenceSpecification
-from app.engine.types import ConflictFinding, ObservationInput, RealityCalculation, SourceAuthority
+from app.engine.engine import calculate
+from app.engine.selection import numeric_divergence
+from app.engine.spec import (
+    ALGORITHM_VERSION,
+    UNAVAILABLE_SPECIFICATION,
+    ConfidenceSpecification,
+)
+from app.engine.types import (
+    ConflictFinding,
+    ObservationInput,
+    RealityCalculation,
+    SourceAuthority,
+)
 from app.models.conflict import Conflict, ConflictStatus
 from app.models.data_source import DataSource
 from app.models.observation import Observation
-from app.models.reality_state import RealityState, RealityStateEvidence
+from app.models.reality_state import EvidenceRole, RealityState, RealityStateEvidence
 from app.services.entities import load_observations_for_entity
 
 logger = get_logger(__name__)
@@ -61,12 +79,17 @@ class RecalculationResult:
     attributes_considered: int
     states_written: int
     conflicts_written: int
-    blocked: tuple[CalculationBlocked, ...]
+    #: Attributes whose state was written without a confidence score, with the
+    #: specification each is blocked on. Reported rather than counted, so an
+    #: operator can see *which* attributes are affected.
+    unscored: tuple[tuple[str, str], ...]
     calculated_at: datetime
+    #: Wall-clock duration, for the completion log. Not an engine input.
+    duration_ms: int = 0
 
     @property
-    def is_fully_blocked(self) -> bool:
-        return self.states_written == 0 and bool(self.blocked)
+    def is_fully_unscored(self) -> bool:
+        return bool(self.unscored) and len(self.unscored) == self.attributes_considered
 
 
 def to_engine_input(
@@ -78,6 +101,11 @@ def to_engine_input(
     from anything inferred about the data. A source that agrees with the
     majority is not thereby more reliable — it may simply be copying from the
     same upstream.
+
+    Neither is configurable yet, so both are ``None``: undeclared. Not a
+    midpoint, not a default — a number here would be an invented reliability
+    value, and it would become load-bearing the moment the scoring
+    specification arrived.
     """
     return ObservationInput(
         observation_id=observation.id,
@@ -89,11 +117,8 @@ def to_engine_input(
         ingested_at=observation.ingested_at,
         event_time_semantics=observation.event_time_semantics,
         authority=authority,
-        # Declared per source. Absent a configured value the engine still needs
-        # a number; this is the neutral midpoint and is recorded as such in the
-        # breakdown rather than presented as a measurement.
-        reliability=Decimal("0.5"),
-        quality=Decimal("1.0"),
+        reliability=None,
+        quality=None,
         validation_passed=True,
     )
 
@@ -128,9 +153,19 @@ async def recalculate_entity(
     authorities = await _source_authorities(db, organization_id=organization_id)
     attributes = attributes_in(observations)
 
+    started = time.perf_counter()
+    logger.info(
+        "reality.recalculation_started",
+        entity_id=str(entity_id),
+        organization_id=str(organization_id),
+        observations=len(observations),
+        attributes=len(attributes),
+        as_of=as_of.isoformat(),
+    )
+
     states_written = 0
     conflicts_written = 0
-    blocked: list[CalculationBlocked] = []
+    unscored: list[tuple[str, str]] = []
 
     for attribute in attributes:
         inputs = tuple(
@@ -150,19 +185,8 @@ async def recalculate_entity(
             specification=specification,
         )
 
-        if isinstance(outcome, CalculationBlocked):
-            blocked.append(outcome)
-            if outcome.detection is not None:
-                conflicts_written += await _persist_conflicts(
-                    db,
-                    organization_id=organization_id,
-                    entity_id=entity_id,
-                    attribute=attribute,
-                    findings=outcome.detection.conflicts,
-                    reality_state_id=None,
-                    as_of=as_of,
-                )
-            continue
+        if outcome.confidence_unavailable is not None:
+            unscored.append((attribute, outcome.confidence_unavailable.missing))
 
         state = await _persist_state(
             db,
@@ -181,15 +205,33 @@ async def recalculate_entity(
             as_of=as_of,
         )
 
+        logger.debug(
+            "reality.attribute_calculated",
+            entity_id=str(entity_id),
+            attribute=attribute,
+            candidates=len(outcome.candidates),
+            # The selected value itself is deliberately absent from the log.
+            # An attribute payload is customer data, and a log sink is the one
+            # place it has no reason to be.
+            value_selected=outcome.value_selected,
+            status=outcome.status.value,
+            scored=outcome.is_scored,
+            evidence=len(outcome.evidence),
+            conflicts=len(outcome.conflicts),
+        )
+
     await db.flush()
+    duration_ms = int((time.perf_counter() - started) * 1000)
     logger.info(
-        "reality.recalculated",
+        "reality.recalculation_completed",
         entity_id=str(entity_id),
         organization_id=str(organization_id),
+        observations=len(observations),
         attributes=len(attributes),
         states_written=states_written,
         conflicts_written=conflicts_written,
-        blocked=len(blocked),
+        unscored=len(unscored),
+        duration_ms=duration_ms,
     )
 
     return RecalculationResult(
@@ -197,8 +239,9 @@ async def recalculate_entity(
         attributes_considered=len(attributes),
         states_written=states_written,
         conflicts_written=conflicts_written,
-        blocked=tuple(blocked),
+        unscored=tuple(unscored),
         calculated_at=as_of,
+        duration_ms=duration_ms,
     )
 
 
@@ -236,18 +279,31 @@ async def _persist_state(
         )
     )
 
+    confidence = calculation.confidence
+    absence = calculation.confidence_unavailable
+
     state = RealityState(
         organization_id=organization_id,
         entity_id=entity_id,
         attribute=calculation.attribute,
         value=calculation.value,
-        confidence=calculation.confidence.score,
+        # NULL, never 0.0. The breakdown carries the reason, so a consumer
+        # reading a null is told why rather than left to guess whether the
+        # score is missing, broken, or genuinely zero.
+        confidence=confidence.score if confidence is not None else None,
         status=calculation.status.value,
-        confidence_breakdown=calculation.confidence.as_dict(),
+        confidence_breakdown=(
+            confidence.as_dict()
+            if confidence is not None
+            else (absence.as_dict() if absence is not None else {"available": False})
+        ),
+        value_selected=calculation.value_selected,
         selection_reason=calculation.selection_reason,
         valid_from=calculation.valid_from,
         calculated_at=calculation.calculated_as_of,
-        algorithm_version=calculation.confidence.algorithm_version,
+        algorithm_version=(
+            confidence.algorithm_version if confidence is not None else ALGORITHM_VERSION
+        ),
         supporting_count=calculation.supporting_count,
         dissenting_count=calculation.dissenting_count,
         source_count=calculation.source_count,
@@ -341,12 +397,12 @@ async def detection_for_entity(
     attribute: str,
     as_of: datetime | None = None,
     specification: ConfidenceSpecification = UNAVAILABLE_SPECIFICATION,
-) -> DetectionResult | RealityCalculation | None:
+) -> RealityCalculation | None:
     """What the evidence shows for one attribute, scored or not.
 
-    Used by the read APIs so a caller gets the most that can honestly be said:
-    a full calculation when the specification allows one, the detection result
-    when it does not.
+    Used by the read APIs so a caller gets the most that can honestly be said.
+    Returns None only when the entity has no observation carrying the
+    attribute at all — a genuine absence rather than an unscored state.
     """
     as_of = as_of or datetime.now(UTC)
     observations = await load_observations_for_entity(
@@ -368,31 +424,40 @@ async def detection_for_entity(
     if not inputs:
         return None
 
-    outcome = calculate(
+    return calculate(
         attribute=attribute, observations=inputs, as_of=as_of, specification=specification
     )
-    if isinstance(outcome, CalculationBlocked):
-        return outcome.detection
-    return outcome
 
 
-def detection_as_dict(detection: DetectionResult) -> dict[str, Any]:
-    """Render a detection result for the API."""
+def detection_as_dict(calculation: RealityCalculation) -> dict[str, Any]:
+    """Render an unscored calculation in the Phase 5 detection shape.
+
+    The ``/unscored`` endpoint is a Phase 5 contract and keeps its response
+    shape. Only its source changed: the same facts now come from the reality
+    calculation rather than from a separate detection-only path, so there is
+    one derivation of "which values were asserted" instead of two that could
+    drift apart.
+    """
+    divergence = numeric_divergence(calculation.candidates)
     return {
-        "attribute": detection.attribute,
+        "attribute": calculation.attribute,
         "scored": False,
-        "disagreement": detection.has_disagreement,
-        "divergence": str(detection.divergence) if detection.divergence is not None else None,
+        "disagreement": len(calculation.candidates) > 1,
+        "divergence": str(divergence) if divergence is not None else None,
         "distinct_values": [
             {
                 "value": candidate.value,
                 "observation_count": len(candidate.observations),
                 "sources": [str(s) for s in candidate.source_ids],
             }
-            for candidate in detection.candidates
+            for candidate in calculation.candidates
         ],
         "excluded": [
-            {"observation_id": str(o.observation_id), "reason": reason}
-            for o, reason in detection.excluded
+            {
+                "observation_id": str(entry.observation.observation_id),
+                "reason": entry.exclusion_reason or "excluded",
+            }
+            for entry in calculation.evidence
+            if entry.role is EvidenceRole.EXCLUDED
         ],
     }

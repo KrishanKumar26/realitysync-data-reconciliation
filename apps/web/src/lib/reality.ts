@@ -11,12 +11,11 @@
 import { apiFetch } from "@/lib/api";
 
 export type ConflictType =
-  | "value_conflict"
-  | "source_disagreement"
-  | "contested_state";
+  "value_conflict" | "source_disagreement" | "contested_state";
 
 /** "unspecified" means the severity thresholds are not available. */
-export type ConflictSeverity = "low" | "medium" | "high" | "critical" | "unspecified";
+export type ConflictSeverity =
+  "low" | "medium" | "high" | "critical" | "unspecified";
 
 export type ConflictStatus = "open" | "acknowledged" | "resolved" | "dismissed";
 
@@ -95,9 +94,24 @@ export interface RealityState {
   id: string;
   entity_id: string;
   attribute: string;
+  /**
+   * `null` when no value was selected. Two different situations, told apart by
+   * `status`: `unknown` means no usable evidence exists, `contested` means
+   * several values compete and the rule for ranking them is unavailable.
+   */
   value: unknown;
-  confidence: string;
+  /**
+   * Whether `value` is a selection. Read this rather than checking `value` for
+   * null — a source can legitimately assert null, and the two must not be
+   * rendered the same way.
+   */
+  value_selected: boolean;
+  /** `null` while the confidence specification is unavailable. Never render 0. */
+  confidence: string | null;
+  /** Explicit flag, so the UI branches on intent rather than on a null. */
+  confidence_available: boolean;
   status: string;
+  /** The score's inputs when it exists; otherwise why it does not. */
   confidence_breakdown: Record<string, unknown>;
   selection_reason: string;
   valid_from: string;
@@ -108,13 +122,35 @@ export interface RealityState {
   source_count: number;
 }
 
+/** One observation's role in a state. The provenance trail. */
+export interface Evidence {
+  observation_id: string;
+  source_id: string;
+  stream_id: string;
+  external_id: string;
+  role: "supporting" | "dissenting" | "excluded" | "considered";
+  weight: string;
+  observed_value: unknown;
+  /** When the source says it was true. */
+  event_time: string;
+  /** When RealitySync learned it. Deliberately separate from `event_time`. */
+  ingested_at: string;
+  exclusion_reason: string | null;
+}
+
 export interface RecalculateResult {
   entity_id: string;
   attributes_considered: number;
   states_written: number;
   conflicts_written: number;
   calculated_at: string;
-  /** True when the confidence specification is unavailable. */
+  /** How many written states carry no confidence score. */
+  states_unscored: number;
+  unscored_attributes: { attribute: string; blocked_on: string }[];
+  /**
+   * True when nothing could be scored. It does NOT mean nothing was written —
+   * states are written either way now, with a null confidence.
+   */
   blocked: boolean;
   blocked_on: string[];
   missing_specifications: { name: string; description: string }[];
@@ -135,9 +171,9 @@ export function createEntity(input: {
   });
 }
 
-export function listConflicts(params: { status?: ConflictStatus } = {}): Promise<
-  Conflict[]
-> {
+export function listConflicts(
+  params: { status?: ConflictStatus } = {},
+): Promise<Conflict[]> {
   const query = params.status ? `?status=${params.status}` : "";
   return apiFetch<Conflict[]>(`/api/conflicts${query}`, { cache: "no-store" });
 }
@@ -177,6 +213,16 @@ export function listRealityStates(entityId: string): Promise<RealityState[]> {
   return apiFetch<RealityState[]>(`/api/entities/${entityId}/reality`, {
     cache: "no-store",
   });
+}
+
+export function listEvidence(
+  entityId: string,
+  attribute: string,
+): Promise<Evidence[]> {
+  return apiFetch<Evidence[]>(
+    `/api/entities/${entityId}/reality/${encodeURIComponent(attribute)}/evidence`,
+    { method: "GET" },
+  );
 }
 
 export function recalculate(entityId: string): Promise<RecalculateResult> {

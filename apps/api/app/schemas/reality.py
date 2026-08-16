@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.conflict import ConflictStatus
 from app.models.reality_state import RealityStatus
@@ -73,12 +73,31 @@ class MappingResponse(BaseModel):
 
 
 class EvidenceResponse(BaseModel):
-    """One observation's contribution. The provenance trail."""
+    """One observation's contribution. The provenance trail.
+
+    Carries enough to answer "why does the system believe that" without a
+    second request: which observation, from which source, what it said, when it
+    was true, when we learned it, and what part it played. Anything less makes
+    the caller join it back together themselves, and a provenance trail that
+    needs assembling is one nobody checks.
+    """
 
     observation_id: uuid.UUID
+    #: Which source said it. The identity, not the credential.
+    source_id: uuid.UUID
+    stream_id: uuid.UUID
+    external_id: str
     role: str
+    #: Zero for every unscored state, meaning "not weighted" rather than
+    #: "weighed and found worthless". The state's null confidence carries that
+    #: distinction; this field cannot.
     weight: Decimal
     observed_value: Any = None
+    #: When the source says it was true.
+    event_time: datetime
+    #: When RealitySync learned it. Separate on purpose — the two answer
+    #: different questions and conflating them erases late arrival.
+    ingested_at: datetime
     exclusion_reason: str | None = None
 
 
@@ -88,10 +107,16 @@ class RealityStateResponse(BaseModel):
     id: uuid.UUID
     entity_id: uuid.UUID
     attribute: str
+    #: None when no value was selected. ``value_selected`` distinguishes that
+    #: from a source genuinely asserting JSON null.
     value: Any
-    confidence: Decimal
+    value_selected: bool
+    #: None while the scoring specification is unavailable. Never 0 — a client
+    #: must render "unavailable", not "0%".
+    confidence: Decimal | None
     status: RealityStatus
-    #: Every input to the score, so it can be rechecked by hand.
+    #: Every input to the score when one exists; otherwise the reason there is
+    #: none, including which specifications are outstanding.
     confidence_breakdown: dict[str, Any]
     selection_reason: str
     valid_from: datetime
@@ -101,6 +126,16 @@ class RealityStateResponse(BaseModel):
     supporting_count: int
     dissenting_count: int
     source_count: int
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def confidence_available(self) -> bool:
+        """Explicit flag so a client branches on intent, not on a null.
+
+        A missing field and a null field are easy to conflate with a
+        serialisation bug; a boolean that says "no score exists" is not.
+        """
+        return self.confidence is not None
 
 
 class UnscoredAttributeResponse(BaseModel):
@@ -127,9 +162,15 @@ class RecalculateResponse(BaseModel):
     states_written: int
     conflicts_written: int
     calculated_at: datetime
-    #: True when nothing could be scored. The interface must say so rather
-    #: than showing an empty Reality page that looks like "no data".
-    blocked: bool
+    #: How many written states carry no confidence score. States are written
+    #: either way now — Phase 5 wrote none when scoring was blocked, which left
+    #: the Reality page indistinguishable from "no data".
+    states_unscored: int = 0
+    #: Which attributes those are, and what each is blocked on.
+    unscored_attributes: list[dict[str, str]] = Field(default_factory=list)
+    #: True when no state could be scored. Kept from Phase 5 so existing
+    #: clients continue to work; it no longer means "nothing was written".
+    blocked: bool = False
     blocked_on: list[str] = Field(default_factory=list)
     missing_specifications: list[dict[str, str]] = Field(default_factory=list)
 

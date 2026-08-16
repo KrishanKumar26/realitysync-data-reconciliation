@@ -48,9 +48,7 @@ def downgrade() -> None:
     # rows were deleted first, discard a customer's configured source and every
     # observation hanging off it.
     connection = op.get_bind()
-    remaining = connection.scalar(
-        sa.text("SELECT count(*) FROM data_sources WHERE kind = 'mysql'")
-    )
+    remaining = connection.scalar(sa.text("SELECT count(*) FROM data_sources WHERE kind = 'mysql'"))
     if remaining:
         raise RuntimeError(
             f"Cannot downgrade: {remaining} MySQL data source(s) exist. "

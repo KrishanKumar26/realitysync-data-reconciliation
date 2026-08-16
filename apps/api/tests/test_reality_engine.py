@@ -18,7 +18,7 @@ from decimal import Decimal
 import pytest
 
 from app.engine.confidence import compute_base, compute_ceiling
-from app.engine.engine import CalculationBlocked, calculate
+from app.engine.engine import calculate
 from app.engine.selection import (
     build_candidates,
     latest_per_source,
@@ -96,22 +96,33 @@ def test_engine_refuses_to_score_without_a_specification() -> None:
     A guessed confidence would be stored, displayed and believed, and nothing
     about it would look wrong. The engine returns blocked instead.
     """
+    # CHANGED IN PHASE 9. This test previously asserted that the engine
+    # returned a CalculationBlocked and produced nothing at all. That behaviour
+    # was obsolete rather than wrong: withholding the *score* is correct, but
+    # Phase 5 also withheld the selection, evidence and provenance that need no
+    # formula, which left reality_states empty in every deployment.
+    #
+    # The property under test is unchanged and is what still matters: no
+    # confidence is invented. It is now asserted as an absent score with a
+    # stated reason rather than as an absent result.
     result = run(
         [observation(source=SOURCE_A, value=42)],
         spec=UNAVAILABLE_SPECIFICATION,
     )
 
-    assert isinstance(result, CalculationBlocked)
-    assert result.missing == "freshness"
-    assert "not specified" in result.detail
+    assert result.confidence is None
+    assert result.confidence_unavailable is not None
+    assert result.confidence_unavailable.missing == "freshness"
+    assert "not specified" in result.confidence_unavailable.detail
 
 
 def test_blocked_result_names_every_missing_input() -> None:
     """ "What is blocking this" must be answerable from the system."""
     result = run([observation(source=SOURCE_A, value=42)], spec=UNAVAILABLE_SPECIFICATION)
-    assert isinstance(result, CalculationBlocked)
+    absence = result.confidence_unavailable
+    assert absence is not None
 
-    names = {entry["name"] for entry in result.as_dict()["missing_specifications"]}  # type: ignore[index]
+    names = {entry["name"] for entry in absence.as_dict()["missing_specifications"]}  # type: ignore[index]
 
     assert "freshness" in names
     assert "conflict_score" in names
@@ -204,7 +215,7 @@ def test_confidence_can_never_exceed_the_cap() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.confidence.score <= MAX_CONFIDENCE
 
 
@@ -222,8 +233,8 @@ def test_repeated_calculation_is_byte_identical() -> None:
     first = run(observations)
     second = run(observations)
 
-    assert not isinstance(first, CalculationBlocked)
-    assert not isinstance(second, CalculationBlocked)
+    assert first.is_scored
+    assert second.is_scored
     assert first.value == second.value
     assert first.confidence.score == second.confidence.score
     assert first.confidence.as_dict() == second.confidence.as_dict()
@@ -242,8 +253,8 @@ def test_input_order_does_not_change_the_result() -> None:
     forward = run(observations)
     reverse = run(list(reversed(observations)))
 
-    assert not isinstance(forward, CalculationBlocked)
-    assert not isinstance(reverse, CalculationBlocked)
+    assert forward.is_scored
+    assert reverse.is_scored
     assert forward.value == reverse.value
     assert forward.confidence.score == reverse.confidence.score
     assert [c.value_key for c in forward.candidates] == [c.value_key for c in reverse.candidates]
@@ -261,8 +272,8 @@ def test_the_engine_never_reads_a_clock() -> None:
     now = run(observations, as_of=NOW)
     much_later = run(observations, as_of=NOW + timedelta(days=3650))
 
-    assert not isinstance(now, CalculationBlocked)
-    assert not isinstance(much_later, CalculationBlocked)
+    assert now.is_scored
+    assert much_later.is_scored
     assert now.value == much_later.value == 42
     assert now.confidence.score == much_later.confidence.score
 
@@ -289,7 +300,7 @@ def test_equal_weights_are_broken_by_authority() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.value == "from_record"
 
 
@@ -301,7 +312,7 @@ def test_equal_weight_and_authority_are_broken_by_event_time() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.value == "newer"
 
 
@@ -370,7 +381,7 @@ def test_late_arrival_does_not_displace_a_newer_event() -> None:
 
     result = run([current, backfill])
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.value == "current"
 
 
@@ -392,7 +403,7 @@ def test_ingestion_time_breaks_ties_at_the_same_event_time() -> None:
 def test_valid_from_is_an_event_time_not_a_calculation_time() -> None:
     result = run([observation(source=SOURCE_A, value=42, event_time=T0)])
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.valid_from == T0
     assert result.calculated_as_of == NOW
     assert result.valid_from != result.calculated_as_of
@@ -418,7 +429,7 @@ def test_agreeing_sources_combine_into_one_candidate() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert len(result.candidates) == 1
     assert result.candidates[0].share == Decimal("1.0000")
     assert result.status is RealityStatus.CONFIRMED
@@ -480,7 +491,7 @@ def test_disagreement_produces_a_contested_state() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert result.status is RealityStatus.CONTESTED
     assert result.value == 42
     assert len(result.candidates) == 2
@@ -495,7 +506,7 @@ def test_a_value_conflict_is_detected_without_any_specification() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     conflict = next(c for c in result.conflicts if c.conflict_type == "value_conflict")
     assert conflict.details["divergence"] == "15"
 
@@ -509,7 +520,7 @@ def test_an_ungraded_conflict_is_recorded_rather_than_scored_zero() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     conflict = next(c for c in result.conflicts if c.conflict_type == "value_conflict")
     assert conflict.score is None
     assert conflict.severity == "unspecified"
@@ -525,7 +536,7 @@ def test_conflicts_are_graded_once_a_specification_exists() -> None:
         spec=spec,
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     conflict = next(c for c in result.conflicts if c.conflict_type == "value_conflict")
     assert conflict.score == Decimal("0.594")
     assert conflict.severity == "high"
@@ -539,7 +550,7 @@ def test_independent_sources_disagreeing_is_flagged_separately() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert any(c.conflict_type == "source_disagreement" for c in result.conflicts)
 
 
@@ -553,8 +564,8 @@ def test_conflict_fingerprints_are_stable_across_runs() -> None:
     first = run(observations)
     second = run(observations)
 
-    assert not isinstance(first, CalculationBlocked)
-    assert not isinstance(second, CalculationBlocked)
+    assert first.is_scored
+    assert second.is_scored
     assert [c.fingerprint for c in first.conflicts] == [c.fingerprint for c in second.conflicts]
 
 
@@ -566,7 +577,7 @@ def test_contested_state_detection_needs_the_margin_threshold() -> None:
             observation(source=SOURCE_B, value=57, reliability="0.49"),
         ]
     )
-    assert not isinstance(without, CalculationBlocked)
+    assert without.is_scored
     assert not any(c.conflict_type == "contested_state" for c in without.conflicts)
 
     with_threshold = run(
@@ -578,7 +589,7 @@ def test_contested_state_detection_needs_the_margin_threshold() -> None:
             conflict_score=Decimal("0.5"), contested_threshold=Decimal("20.00")
         ),
     )
-    assert not isinstance(with_threshold, CalculationBlocked)
+    assert with_threshold.is_scored
     assert any(c.conflict_type == "contested_state" for c in with_threshold.conflicts)
 
 
@@ -596,8 +607,8 @@ def test_conflicts_never_change_the_selected_value() -> None:
     ungraded = run(observations)
     graded = run(observations, spec=MechanicalSpecification(conflict_score=Decimal("0.9")))
 
-    assert not isinstance(ungraded, CalculationBlocked)
-    assert not isinstance(graded, CalculationBlocked)
+    assert ungraded.is_scored
+    assert graded.is_scored
     assert ungraded.value == graded.value == 42
 
 
@@ -619,7 +630,7 @@ def test_every_observation_appears_in_the_evidence() -> None:
 
     result = run(observations)
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert {e.observation.observation_id for e in result.evidence} == {
         uuid.UUID(int=1),
         uuid.UUID(int=2),
@@ -641,7 +652,7 @@ def test_evidence_separates_support_dissent_and_exclusion() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     roles = {e.observation.observation_id: e.role for e in result.evidence}
 
     assert roles[uuid.UUID(int=1)] is EvidenceRole.SUPPORTING
@@ -662,7 +673,7 @@ def test_an_excluded_observation_records_why() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     excluded = next(e for e in result.evidence if e.observation.observation_id == uuid.UUID(int=2))
     assert excluded.role is EvidenceRole.EXCLUDED
     assert excluded.exclusion_reason == "validation_failed"
@@ -677,7 +688,7 @@ def test_a_failing_observation_is_kept_as_evidence_not_dropped() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert len(result.evidence) == 2
     assert result.value == 42
 
@@ -690,7 +701,7 @@ def test_the_selection_reason_states_why_without_ai() -> None:
         ]
     )
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     assert "competing values" in result.selection_reason
     assert "percentage points" in result.selection_reason
 
@@ -698,7 +709,7 @@ def test_the_selection_reason_states_why_without_ai() -> None:
 def test_the_breakdown_allows_the_score_to_be_rechecked_by_hand() -> None:
     result = run([observation(source=SOURCE_A, value=42, reliability="0.8")])
 
-    assert not isinstance(result, CalculationBlocked)
+    assert result.is_scored
     breakdown = result.confidence.as_dict()
 
     assert set(breakdown) >= {"ceiling", "base", "factors", "penalties", "formula"}
@@ -714,20 +725,28 @@ def test_the_breakdown_allows_the_score_to_be_rechecked_by_hand() -> None:
 
 
 def test_no_observations_gives_an_honest_unknown() -> None:
-    """Not a guess, and not an error — an absence, stated."""
+    """Not a guess, and not an error — an absence, stated.
+
+    CHANGED IN PHASE 9. This previously asserted ``confidence.score == 0.0`` on
+    the reasoning that there is nothing to be confident about. That was the one
+    place the codebase converted an unavailable confidence into a number: 0.0
+    is a *score*, and asserting one claims what the missing formula would have
+    produced for an empty evidence set. Nobody knows that. The absence is now
+    represented as an absence.
+    """
     result = run([])
 
-    assert not isinstance(result, CalculationBlocked)
     assert result.status is RealityStatus.UNKNOWN
     assert result.value is None
-    assert result.confidence.score == Decimal("0.0")
+    assert result.value_selected is False
+    assert result.confidence is None, "UNKNOWN must not carry a fabricated score"
+    assert result.confidence_unavailable is not None
     assert result.evidence == ()
 
 
 def test_only_invalid_observations_gives_unknown_with_evidence() -> None:
     result = run([observation(source=SOURCE_A, value="bad", validation_passed=False)])
 
-    assert not isinstance(result, CalculationBlocked)
     assert result.status is RealityStatus.UNKNOWN
     assert len(result.evidence) == 1
     assert result.evidence[0].role is EvidenceRole.EXCLUDED
@@ -737,8 +756,10 @@ def test_unknown_needs_no_specification() -> None:
     """ "We have nothing" is knowable without the missing constants."""
     result = run([], spec=UNAVAILABLE_SPECIFICATION)
 
-    assert not isinstance(result, CalculationBlocked)
     assert result.status is RealityStatus.UNKNOWN
+    # And still no score, because "what confidence does an empty evidence set
+    # carry" is itself part of the missing specification.
+    assert result.confidence is None
 
 
 # --- Golden test -----------------------------------------------------------

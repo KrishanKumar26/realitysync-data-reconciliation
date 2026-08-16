@@ -35,6 +35,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -93,6 +94,15 @@ class EvidenceRole(enum.StrEnum):
     #: same source, or failed validation. Recorded rather than dropped so the
     #: evidence trail shows what was looked at, not only what counted.
     EXCLUDED = "excluded"
+    #: Eligible, and no value was selected for it to support or dissent from.
+    #:
+    #: Exists because "supporting" and "dissenting" are defined *relative to a
+    #: selection*, and while the weighting specification is unavailable a
+    #: contested attribute has no selection. Labelling these observations
+    #: dissenting would imply a winner they disagree with; labelling them
+    #: supporting would invent one. Both would be a verdict the engine has not
+    #: reached.
+    CONSIDERED = "considered"
 
 
 REALITY_STATUSES: tuple[str, ...] = tuple(s.value for s in RealityStatus)
@@ -112,6 +122,17 @@ class RealityState(Base, OrganizationScoped):
         # The approved bound. 100% would claim certainty, which no finite set
         # of observations can justify.
         CheckConstraint("confidence >= 0 AND confidence <= 99", name="confidence_range"),
+        # Deliberately NO constraint tying `value` to `value_selected`.
+        # A source can legitimately assert JSON null, and `value` cannot
+        # distinguish that from "nothing was selected" — which is precisely why
+        # `value_selected` exists and is authoritative. A constraint here would
+        # forbid the legitimate case to guard against the ambiguous one.
+        #
+        # UNKNOWN means no usable evidence, so there is nothing to have
+        # selected. That one *is* enforced, because it involves no ambiguity.
+        CheckConstraint(
+            "status <> 'unknown' OR NOT value_selected", name="unknown_selects_nothing"
+        ),
         CheckConstraint("valid_to IS NULL OR valid_to >= valid_from", name="valid_range_ordered"),
         CheckConstraint("length(btrim(attribute)) > 0", name="attribute_not_blank"),
         Index(
@@ -140,12 +161,20 @@ class RealityState(Base, OrganizationScoped):
     #: The believed value, in the canonical JSON form produced by
     #: app.ingestion.normalization — so a numeric keeps its scale and
     #: comparison is exact rather than float-approximate.
-    value: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    #: NULL when no value could be selected. Two cases, told apart by
+    #: ``status``: UNKNOWN means no usable evidence exists; CONTESTED means
+    #: several values compete and the rule for ranking them is unavailable.
+    #: Storing the alphabetically-first candidate instead would be a fabricated
+    #: verdict indistinguishable from a real one.
+    value: Mapped[Any] = mapped_column(JSONB, nullable=True)
 
     #: 0-99, one decimal place. NUMERIC not float: a confidence that renders
     #: as 71.0 in one place and 70.99999 in another is not reproducible, and
     #: reproducibility is the whole point.
-    confidence: Mapped[Decimal] = mapped_column(Numeric(4, 1), nullable=False)
+    #: NULL when the scoring specification is unavailable. Deliberately not
+    #: 0.0: a zero is a score, and writing one asserts what the missing formula
+    #: would have produced. ``confidence_breakdown`` carries the reason.
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
 
     status: Mapped[str] = mapped_column(String(16), nullable=False)
 
@@ -158,6 +187,14 @@ class RealityState(Base, OrganizationScoped):
     #: Plain-language statement of why this value won, generated
     #: deterministically from the calculation. Not AI-written — the engine
     #: knows exactly why it chose, and a template renders it.
+    #: Whether ``value`` is the engine's selection. False means no value was
+    #: selected; ``status`` and ``selection_reason`` say why. Stored rather than
+    #: derived from ``value IS NULL`` so a legitimately null *asserted* value
+    #: can never be confused with an absent selection.
+    value_selected: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+
     selection_reason: Mapped[str] = mapped_column(Text, nullable=False)
 
     #: Valid time: when this value became true, per the sources.

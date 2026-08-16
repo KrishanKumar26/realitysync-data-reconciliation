@@ -14,7 +14,14 @@ const EMPTY_DASHBOARD = {
   generated_at: "2026-08-11T12:00:00Z",
   window_days: 7,
   is_empty: true,
-  sources: { total: 0, connected: 0, never_tested: 0, errored: 0, disabled: 0, sources: [] },
+  sources: {
+    total: 0,
+    connected: 0,
+    never_tested: 0,
+    errored: 0,
+    disabled: 0,
+    sources: [],
+  },
   ingestion: {
     observation_count: 0,
     observations_in_window: 0,
@@ -48,8 +55,14 @@ const EMPTY_DASHBOARD = {
     blocked_reason:
       "The Reality Engine cannot produce a confidence score: the approved confidence specification is unavailable, so no score is shown rather than an invented one.",
     missing_specifications: [
-      { name: "freshness", description: "Decay curve mapping observation age to 0..1." },
-      { name: "conflict_score", description: "Formula producing the 0..1 conflict score." },
+      {
+        name: "freshness",
+        description: "Decay curve mapping observation age to 0..1.",
+      },
+      {
+        name: "conflict_score",
+        description: "Formula producing the 0..1 conflict score.",
+      },
     ],
   },
   activity: [],
@@ -184,7 +197,9 @@ describe("Overview", () => {
     expect(screen.queryByText("Nothing connected yet")).not.toBeInTheDocument();
 
     resolve();
-    expect(await screen.findByText("Nothing connected yet")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Nothing connected yet"),
+    ).toBeInTheDocument();
   });
 
   it("offers onboarding when nothing is connected", async () => {
@@ -192,11 +207,12 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    expect(await screen.findByText("Nothing connected yet")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Connect a source" })).toHaveAttribute(
-      "href",
-      "/sources",
-    );
+    expect(
+      await screen.findByText("Nothing connected yet"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Connect a source" }),
+    ).toHaveAttribute("href", "/sources");
   });
 
   it("says confidence is unavailable rather than showing zero", async () => {
@@ -219,7 +235,9 @@ describe("Overview", () => {
     await renderWithSession(<OverviewPage />);
 
     expect(
-      await screen.findByText(/approved confidence specification is unavailable/i),
+      await screen.findByText(
+        /approved confidence specification is unavailable/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("2 specifications required")).toBeInTheDocument();
   });
@@ -256,9 +274,13 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    const panel = (await screen.findByText("Source health")).closest("section")!;
+    const panel = (await screen.findByText("Source health")).closest(
+      "section",
+    )!;
     expect(within(panel).getByText("Warehouse")).toBeInTheDocument();
-    expect(within(panel).getByText("The database refused the connection.")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("The database refused the connection."),
+    ).toBeInTheDocument();
   });
 
   it("distinguishes never-tested from failing", async () => {
@@ -294,7 +316,9 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    expect(await screen.findByText("Ingested 12 new observations")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ingested 12 new observations"),
+    ).toBeInTheDocument();
     expect(screen.getByText("A sync failed")).toBeInTheDocument();
   });
 
@@ -305,7 +329,9 @@ describe("Overview", () => {
       ...SESSION,
       "/api/dashboard": {
         status: 500,
-        body: { error: { code: "INTERNAL_ERROR", message: "Database unavailable." } },
+        body: {
+          error: { code: "INTERNAL_ERROR", message: "Database unavailable." },
+        },
       },
     });
 
@@ -319,12 +345,17 @@ describe("Overview", () => {
 
   it("refreshes on demand", async () => {
     const user = userEvent.setup();
-    const { calls } = stubApi({ ...SESSION, "/api/dashboard": { body: ACTIVE_DASHBOARD } });
+    const { calls } = stubApi({
+      ...SESSION,
+      "/api/dashboard": { body: ACTIVE_DASHBOARD },
+    });
 
     await renderWithSession(<OverviewPage />);
     await user.click(await screen.findByRole("button", { name: "Refresh" }));
 
-    const dashboardCalls = calls.filter((c) => c.url.includes("/api/dashboard"));
+    const dashboardCalls = calls.filter((c) =>
+      c.url.includes("/api/dashboard"),
+    );
     expect(dashboardCalls.length).toBeGreaterThan(1);
   });
 });
@@ -374,9 +405,13 @@ describe("Reality page", () => {
         body: {
           entity_id: "entity-1",
           attributes_considered: 4,
-          states_written: 0,
+          states_written: 4,
           conflicts_written: 6,
           calculated_at: "2026-08-11T12:00:00Z",
+          states_unscored: 4,
+          unscored_attributes: [
+            { attribute: "quantity", blocked_on: "freshness" },
+          ],
           blocked: true,
           blocked_on: ["freshness"],
           missing_specifications: [
@@ -387,10 +422,16 @@ describe("Reality page", () => {
     });
 
     await renderWithSession(<RealityPage />);
-    await user.click(await screen.findByRole("button", { name: "Recalculate" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Recalculate" }),
+    );
 
+    // CHANGED IN PHASE 9. This previously asserted the heading "No reality
+    // state could be produced", which matched the Phase 5 behaviour of writing
+    // nothing when scoring was blocked. States are written now — only the score
+    // is withheld — so a heading saying nothing was produced would be false.
     expect(
-      await screen.findByText("No reality state could be produced"),
+      await screen.findByText("States written without confidence scores"),
     ).toBeInTheDocument();
     expect(screen.getByText(/Blocked on: freshness/)).toBeInTheDocument();
     // Detection still ran — that is the useful half.
@@ -408,7 +449,9 @@ describe("Reality page", () => {
             entity_id: "entity-1",
             attribute: "quantity",
             value: 42,
+            value_selected: true,
             confidence: "71.0",
+            confidence_available: true,
             status: "contested",
             confidence_breakdown: {},
             selection_reason: "Selected from 2 competing values.",
@@ -426,7 +469,14 @@ describe("Reality page", () => {
     await renderWithSession(<RealityPage />);
 
     expect(await screen.findByText("quantity")).toBeInTheDocument();
-    expect(screen.getByText("71.0% · contested")).toBeInTheDocument();
-    expect(screen.getByText("Selected from 2 competing values.")).toBeInTheDocument();
+    // A score that genuinely exists is still rendered as a number. The Phase 9
+    // change withholds a score that does not exist; it does not stop the page
+    // showing one that does, which is what will happen once the specification
+    // arrives.
+    expect(screen.getByText(/71\.0%/)).toBeInTheDocument();
+    expect(screen.getByText(/contested/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Selected from 2 competing values."),
+    ).toBeInTheDocument();
   });
 });

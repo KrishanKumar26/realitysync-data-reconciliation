@@ -394,7 +394,13 @@ async def confidence_summary(db: AsyncSession, *, organization_id: uuid.UUID) ->
     scored = int(
         await db.scalar(
             select(func.count(RealityState.id)).where(
-                RealityState.organization_id == organization_id
+                RealityState.organization_id == organization_id,
+                # Only states that actually carry a score. Counting every state
+                # was correct until Phase 9, when states began to be written
+                # with a NULL confidence — after which this would have reported
+                # "confidence available" alongside a null average, which is the
+                # fabricated-metric failure the panel exists to prevent.
+                RealityState.confidence.is_not(None),
             )
         )
         or 0
