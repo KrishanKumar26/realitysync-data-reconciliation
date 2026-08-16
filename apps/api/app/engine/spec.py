@@ -47,7 +47,23 @@ WEIGHT_AGREEMENT = Decimal("0.15")
 
 #: Ceiling = 1 - product(1 - R_source) over distinct supporting sources, capped here.
 #: No finite set of observations justifies certainty.
+#:
+#: Confirmed twice: docs/architecture.md caps the ceiling at 0.99, and the
+#: recovered Phase 0 decision record states "Maximum confidence = 99%"
+#: independently. See docs/phase-0-recovery.md.
 CEILING_CAP = Decimal("0.99")
+
+#: Recovered in Phase 10 from the Phase 0 decision record:
+#:
+#:     "Keep recorded event-time semantics without applying an automatic
+#:      freshness discount in MVP."
+#:
+#: A real specification decision, and currently unenforceable: there is no
+#: freshness curve, so there is no discount to withhold. Recorded here so that
+#: whoever implements freshness does not invent a penalty for `recorded`
+#: semantics that Phase 0 explicitly declined to apply. It is a warning and
+#: root-cause signal in MVP, not a scoring input.
+RECORDED_SEMANTICS_TAKES_NO_FRESHNESS_DISCOUNT = True
 
 #: Score = 100 x Ceiling x Base x coverage x staleness x impossible x late,
 #: bounded to this range.
@@ -108,7 +124,13 @@ class SpecificationUnavailableError(NotImplementedError):
 #: the API and stored on any state that could not be scored, so "what is
 #: blocking this" is answerable from the data rather than from a person.
 MISSING_SPECIFICATIONS: tuple[tuple[str, str], ...] = (
-    ("freshness", "Decay curve and constant mapping observation age to 0..1."),
+    (
+        "freshness",
+        "Decay curve and constant mapping observation age to 0..1. Partially "
+        "constrained: Phase 0 confirmed that 'recorded' event-time semantics "
+        "takes no automatic freshness discount in MVP. The curve itself is "
+        "still unknown.",
+    ),
     (
         "quality",
         "Derivation of the 0..1 quality factor, or confirmation it is a source-declared input.",

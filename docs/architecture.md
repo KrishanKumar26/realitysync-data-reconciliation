@@ -88,6 +88,14 @@ Score   = 100 × Ceiling × Base × penalties
 Deterministic, bounded at 99, and stored with its full component breakdown so
 any score can be re-derived and explained.
 
+**The sub-formulas are missing and were not recovered.** Phase 10 searched
+exhaustively and found one genuine Phase 0 decision record, which confirms the
+shape above, the 99% cap, and that `recorded` event-time takes no automatic
+freshness discount — and contains none of the twelve inputs the score needs.
+The full search record, the recovered quotations and the conflict between two
+authoritative statements of the Base formula are in
+[phase-0-recovery.md](phase-0-recovery.md).
+
 > **Superseded, Phase 4.** This document previously recorded Base as
 > `0.40·agreement + 0.30·freshness + 0.15·quality + 0.15·validation`. The
 > Phase 4 brief specifies `reliability = 0.40, freshness = 0.30,
