@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiFetch, readCsrfToken } from "@/lib/api";
+import { apiFetch, readCsrfToken, rememberCsrfToken } from "@/lib/api";
 
 /**
  * The client half of the CSRF contract.
@@ -38,6 +38,7 @@ function headersOf(spy: ReturnType<typeof stubFetch>): Record<string, string> {
 describe("CSRF token handling", () => {
   beforeEach(() => {
     setCookie("");
+    rememberCsrfToken(null);
   });
 
   afterEach(() => {
@@ -106,5 +107,70 @@ describe("CSRF token handling", () => {
     const second = stubFetch();
     await apiFetch("/api/auth/logout", { method: "POST" });
     expect(headersOf(second)["X-CSRF-Token"]).toBe("second-token");
+  });
+});
+
+describe("CSRF across domains", () => {
+  /**
+   * The bug this section exists for, found on a real deployment.
+   *
+   * With the API on one domain and the app on another, the browser stores and
+   * sends `rs_csrf` correctly but `document.cookie` cannot see it — it exposes
+   * only the page's own domain. Every state-changing request therefore went out
+   * with no token and was refused: reads worked, writes did not.
+   *
+   * It is invisible locally, where both run on `localhost` and cookies ignore
+   * the port, so one origin reads the other's cookie quite happily.
+   */
+  beforeEach(() => {
+    setCookie("");
+    rememberCsrfToken(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    rememberCsrfToken(null);
+  });
+
+  it("sends the token when the cookie is unreadable", async () => {
+    // Exactly the cross-domain situation: no cookie visible to this page.
+    rememberCsrfToken("token-from-login-response");
+    const spy = stubFetch();
+
+    await apiFetch("/api/data-sources", { method: "POST", body: "{}" });
+
+    expect(headersOf(spy)["X-CSRF-Token"]).toBe("token-from-login-response");
+  });
+
+  it("still reads the cookie when nothing is in memory", async () => {
+    // Same-origin and local development must keep working, and so must a page
+    // reloaded before any session request has repopulated memory.
+    setCookie("rs_csrf=token-from-cookie");
+    const spy = stubFetch();
+
+    await apiFetch("/api/data-sources", { method: "POST", body: "{}" });
+
+    expect(headersOf(spy)["X-CSRF-Token"]).toBe("token-from-cookie");
+  });
+
+  it("prefers the remembered token over a stale cookie", async () => {
+    // Switching organization issues a new token. The cookie may lag behind on
+    // a cross-domain setup, and the fresher value is the one the server holds.
+    setCookie("rs_csrf=stale");
+    rememberCsrfToken("fresh");
+    const spy = stubFetch();
+
+    await apiFetch("/api/data-sources", { method: "POST", body: "{}" });
+
+    expect(headersOf(spy)["X-CSRF-Token"]).toBe("fresh");
+  });
+
+  it("forgets the token so a revoked session cannot keep using it", () => {
+    rememberCsrfToken("some-token");
+    expect(readCsrfToken()).toBe("some-token");
+
+    rememberCsrfToken(null);
+
+    expect(readCsrfToken()).toBeNull();
   });
 });

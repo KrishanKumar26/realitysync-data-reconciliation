@@ -64,13 +64,44 @@ const CSRF_HEADER = "X-CSRF-Token";
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
- * Read the CSRF token the API set on the last authenticated response.
+ * The CSRF token, as the API last reported it.
  *
- * Deliberately read at call time rather than cached: logging in, logging out
- * and switching accounts all replace it, and a stale copy would fail every
- * state-changing request until a reload.
+ * Held in memory rather than read only from the cookie, because the cookie is
+ * unreadable whenever the API and the web app are on different domains — and
+ * that is the normal production shape, not an edge case.
+ *
+ * `document.cookie` exposes only cookies belonging to the page's own domain.
+ * With the API on `api.example.com` and the app on `app.example.com`, the
+ * browser stores and sends `rs_csrf` correctly but the app's JavaScript cannot
+ * see it, so every state-changing request went out with no token and was
+ * refused. Reads worked, writes did not.
+ *
+ * This is invisible in local development, where both run on `localhost` and
+ * cookies ignore the port, so one origin can read the other's cookie. It first
+ * appears on a real deployment.
+ */
+let csrfToken: string | null = null;
+
+/**
+ * Record the token from an authenticated response.
+ *
+ * Called wherever the API reports one — sign-in, registration, session
+ * refresh, organization switch. Each of those replaces the token server-side,
+ * so a stale copy would fail every write until a reload.
+ */
+export function rememberCsrfToken(token: string | null): void {
+  csrfToken = token;
+}
+
+/**
+ * Read the CSRF token for the next state-changing request.
+ *
+ * Memory first, cookie second. The cookie fallback keeps same-origin and
+ * local-development setups working, and covers a page that was reloaded
+ * before any session request has repopulated memory.
  */
 export function readCsrfToken(): string | null {
+  if (csrfToken) return csrfToken;
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(
     new RegExp(`(?:^|;\\s*)${CSRF_COOKIE}=([^;]*)`),
@@ -121,7 +152,8 @@ export async function apiFetch<T>(
       const envelope = body as ApiErrorBody | null;
       throw new ApiError({
         code: envelope?.error?.code ?? "HTTP_ERROR",
-        message: envelope?.error?.message ?? `Request failed (${response.status})`,
+        message:
+          envelope?.error?.message ?? `Request failed (${response.status})`,
         status: response.status,
         requestId:
           envelope?.error?.request_id ?? response.headers.get("X-Request-ID"),
@@ -201,8 +233,24 @@ export interface AnonymousSession {
 
 export type SessionState = AuthenticatedSession | AnonymousSession;
 
+/**
+ * Capture the CSRF token from any response that carries one.
+ *
+ * Every endpoint that establishes or refreshes a session returns the current
+ * token, so recording it here means the app never depends on being able to
+ * read the cookie — which it cannot do across domains.
+ */
+function withToken<T extends SessionState | AuthenticatedSession>(
+  response: T,
+): T {
+  if ("csrf_token" in response) rememberCsrfToken(response.csrf_token);
+  return response;
+}
+
 export function fetchSession(): Promise<SessionState> {
-  return apiFetch<SessionState>("/api/auth/session", { cache: "no-store" });
+  return apiFetch<SessionState>("/api/auth/session", {
+    cache: "no-store",
+  }).then(withToken);
 }
 
 export function loginRequest(input: {
@@ -212,7 +260,7 @@ export function loginRequest(input: {
   return apiFetch<AuthenticatedSession>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }).then(withToken);
 }
 
 export function registerRequest(input: {
@@ -224,11 +272,18 @@ export function registerRequest(input: {
   return apiFetch<AuthenticatedSession>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(input),
-  });
+  }).then(withToken);
 }
 
 export function logoutRequest(): Promise<{ ok: true }> {
-  return apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" });
+  return apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }).then(
+    (result) => {
+      // The session is gone, so the token is too. Keeping it would send a
+      // token belonging to a session the server has already revoked.
+      rememberCsrfToken(null);
+      return result;
+    },
+  );
 }
 
 export function switchOrganizationRequest(
@@ -237,5 +292,5 @@ export function switchOrganizationRequest(
   return apiFetch<AuthenticatedSession>("/api/auth/organization", {
     method: "POST",
     body: JSON.stringify({ organization_id: organizationId }),
-  });
+  }).then(withToken);
 }
