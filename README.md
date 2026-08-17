@@ -17,6 +17,9 @@ software and autonomous systems.
 > `null`, never `0`. See [docs/phase-6-overview.md](docs/phase-6-overview.md).
 > **Every value shown comes from a real source row — nothing is seeded, and no
 > placeholder data pretends to be product data.**
+>
+> Release readiness, findings and known limitations:
+> [docs/release-review.md](docs/release-review.md).
 
 ---
 
