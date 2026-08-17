@@ -171,6 +171,37 @@ export function createEntity(input: {
   });
 }
 
+/**
+ * One source row bound to one entity.
+ *
+ * The binding is declared, never inferred. An entity is a real thing in the
+ * world; deciding that two rows describe the same thing is a judgement, and a
+ * wrong guess merges two real things irreversibly.
+ */
+export interface EntityMapping {
+  id: string;
+  entity_id: string;
+  stream_id: string;
+  external_id: string;
+  created_at: string;
+}
+
+export function listMappings(entityId: string): Promise<EntityMapping[]> {
+  return apiFetch<EntityMapping[]>(`/api/entities/${entityId}/mappings`, {
+    cache: "no-store",
+  });
+}
+
+export function createMapping(
+  entityId: string,
+  input: { stream_id: string; external_id: string },
+): Promise<EntityMapping> {
+  return apiFetch<EntityMapping>(`/api/entities/${entityId}/mappings`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function listConflicts(
   params: { status?: ConflictStatus } = {},
 ): Promise<Conflict[]> {

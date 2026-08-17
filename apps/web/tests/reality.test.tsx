@@ -333,3 +333,137 @@ describe("Reality page", () => {
     expect(attributes).toEqual(["quantity", "location"]);
   });
 });
+
+/**
+ * Creating an entity and binding source rows to it.
+ *
+ * The gap this closes: the Reality page told you to "create an entity and map
+ * a synced table to it" and gave you no way to do either. The API had both
+ * endpoints from the start; the interface never called them, so a workspace
+ * could connect a source, sync real rows, and then stop — every downstream
+ * feature depends on an entity existing.
+ */
+describe("Entity setup", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers a way to create one when there are no entities", async () => {
+    // The empty state used to describe the action without providing it.
+    stubApi({ ...SESSION, "/api/entities": { body: [] } });
+
+    await renderWithSession(<RealityPage />);
+
+    expect(await screen.findByText("No entities yet")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "New entity" }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates an entity through the real endpoint", async () => {
+    const user = userEvent.setup();
+    const { calls } = stubApi({
+      ...SESSION,
+      "/api/entities": { body: [] },
+    });
+
+    await renderWithSession(<RealityPage />);
+    await user.click(await screen.findByRole("button", { name: "New entity" }));
+
+    await user.type(screen.getByLabelText("Natural key"), "LAPTOP-13");
+    await user.click(screen.getByRole("button", { name: "Create entity" }));
+
+    await waitFor(() => {
+      const request = calls.find(
+        (call) => call.method === "POST" && call.url.endsWith("/api/entities"),
+      );
+      expect(request).toBeDefined();
+      const body = request?.body as Record<string, unknown>;
+      expect(body.natural_key).toBe("LAPTOP-13");
+      expect(body.entity_type).toBe("sku");
+    });
+  });
+
+  it("shows how many source rows the selected entity is bound to", async () => {
+    stubApi({
+      ...SESSION,
+      "/api/entities": { body: [ENTITY] },
+      "/api/entities/ent-1/reality": { body: [CONFIRMED_STATE] },
+      "/api/entities/ent-1/mappings": { body: [] },
+    });
+
+    await renderWithSession(<RealityPage />);
+    await openEntity();
+
+    // Two, not one: a single source cannot disagree with anything, so the
+    // count is the thing worth saying out loud.
+    expect(
+      await screen.findByText(/Map at least two sources/),
+    ).toBeInTheDocument();
+  });
+
+  it("offers observed row ids rather than asking anyone to type one", async () => {
+    // The external id format is an internal convention. Typed freehand, a typo
+    // produces a mapping that matches nothing and reports no error at all.
+    const user = userEvent.setup();
+    stubApi({
+      ...SESSION,
+      "/api/entities": { body: [ENTITY] },
+      "/api/entities/ent-1/reality": { body: [CONFIRMED_STATE] },
+      "/api/entities/ent-1/mappings": { body: [] },
+      "/api/data-sources": {
+        body: [{ id: "src-1", name: "Warehouse", kind: "postgresql" }],
+      },
+      "/api/data-sources/src-1/streams": {
+        body: [{ id: "stream-1", qualified_name: "public.wms_inventory" }],
+      },
+      "/api/data-sources/src-1/observations": {
+        body: [
+          { external_id: "sku_id=1" },
+          { external_id: "sku_id=2" },
+          { external_id: "sku_id=1" },
+        ],
+      },
+    });
+
+    await renderWithSession(<RealityPage />);
+    await openEntity();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Map a source row" }),
+    );
+
+    // Deduplicated: the same row observed twice is still one row.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("option", { name: "sku_id=1" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("option", { name: "sku_id=2" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says what to do when a source has nothing to map yet", async () => {
+    const user = userEvent.setup();
+    stubApi({
+      ...SESSION,
+      "/api/entities": { body: [ENTITY] },
+      "/api/entities/ent-1/reality": { body: [CONFIRMED_STATE] },
+      "/api/entities/ent-1/mappings": { body: [] },
+      "/api/data-sources": {
+        body: [{ id: "src-1", name: "Warehouse", kind: "postgresql" }],
+      },
+      "/api/data-sources/src-1/streams": { body: [] },
+      "/api/data-sources/src-1/observations": { body: [] },
+    });
+
+    await renderWithSession(<RealityPage />);
+    await openEntity();
+    await user.click(
+      await screen.findByRole("button", { name: "Map a source row" }),
+    );
+
+    expect(await screen.findByText(/Sync it first/)).toBeInTheDocument();
+  });
+});

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { EntitySetup } from "@/components/reality/entity-setup";
 import { EvidenceTrail } from "@/components/reality/evidence-trail";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -125,6 +126,13 @@ export default function RealityPage() {
             <EmptyState
               title="No entities yet"
               description="A reality state is what RealitySync believes about one thing. Create an entity and map a synced table to it, and the engine has something to reason about."
+              action={
+                <EntitySetup
+                  entity={null}
+                  onEntityCreated={() => void load()}
+                  onMappingCreated={() => void load()}
+                />
+              }
             />
           </PanelBody>
         </Panel>
@@ -160,6 +168,16 @@ export default function RealityPage() {
               {running ? "Recalculating…" : "Recalculate"}
             </Button>
           </div>
+
+          <EntitySetup
+            entity={state.entities.find((e) => e.id === entityId) ?? null}
+            onEntityCreated={(created) => {
+              setEntityId(created.id);
+              setLastRun(null);
+              void load();
+            }}
+            onMappingCreated={() => void load()}
+          />
 
           {lastRun?.blocked ? (
             <Panel>
