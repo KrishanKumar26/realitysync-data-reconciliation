@@ -153,6 +153,23 @@ _TEXT_PATTERNS: tuple[tuple[tuple[str, ...], ConnectorErrorCode, str, str | None
         "Private VPC addresses are not supported.",
     ),
     (
+        # Connection poolers in transaction mode — Neon's `-pooler` endpoint,
+        # PgBouncer, Supabase's pooler — reject libpq startup options. We send
+        # `default_transaction_read_only`, which is what makes "RealitySync
+        # cannot write to your database" enforced by the server rather than
+        # promised by us. Dropping it to fit through the pooler would trade a
+        # guarantee for a convenience, silently. So this fails, and says why.
+        ("unsupported startup parameter",),
+        ConnectorErrorCode.INVALID_CONFIGURATION,
+        "This endpoint is a connection pooler, which cannot accept the "
+        "read-only setting RealitySync requires.",
+        "Use the direct endpoint instead of the pooled one. On Neon that means "
+        "removing '-pooler' from the host name.\n"
+        "RealitySync opens every connection read-only at the server, so it "
+        "cannot write to your database. A pooler refuses that setting, and "
+        "connecting without it would drop the guarantee.",
+    ),
+    (
         ("password authentication failed", "authentication failed"),
         ConnectorErrorCode.AUTHENTICATION_FAILED,
         "The database rejected the username or password.",

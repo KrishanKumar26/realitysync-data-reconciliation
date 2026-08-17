@@ -1221,3 +1221,30 @@ def test_conninfo_pins_the_address_but_keeps_the_hostname_for_tls() -> None:
 
     # No address pinned: no hostaddr at all, rather than an empty one.
     assert "hostaddr" not in connector._conninfo(None)
+
+
+def test_pooler_rejection_is_explained_rather_than_unexpected() -> None:
+    """A pooler refusing our read-only setting must name itself.
+
+    Neon's pooled endpoint answers with "unsupported startup parameter in
+    options: default_transaction_read_only". Unmapped, that reached the
+    operator as "failed for an unexpected reason", which sends them to the
+    logs for something the interface could simply have told them.
+    """
+    from app.connectors.postgres.errors import map_exception
+    from app.connectors.types import ConnectorErrorCode
+
+    error = map_exception(
+        Exception(
+            "connection failed: ERROR:  unsupported startup parameter in "
+            "options: default_transaction_read_only. Please use unpooled "
+            "connection or remove this parameter from the startup package."
+        ),
+        operation="connect",
+    )
+
+    assert error.code is ConnectorErrorCode.INVALID_CONFIGURATION
+    assert "pooler" in error.message.lower()
+    assert "-pooler" in (error.remediation or "")
+    # The read-only guarantee is the reason this fails; say so.
+    assert "read-only" in (error.remediation or "").lower()
