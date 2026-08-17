@@ -214,3 +214,67 @@
     }
   }
 }
+
+@layer utilities {
+  /* --- Sign-in screen -----------------------------------------------------
+
+     Everything here is slow, low-contrast and decorative. The reduced-motion
+     block above neutralises all of it, which is why none of it carries
+     meaning: a person who never sees these moving must not be missing
+     anything.
+  ------------------------------------------------------------------------ */
+
+  /* Staggered entrance. `--stagger` is set per element so a column of fields
+     arrives in reading order instead of all at once, which is the difference
+     between a page that settles and a page that pops. */
+  .animate-rise-stagger {
+    animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--stagger, 0) * 70ms);
+  }
+
+  /* The ambient colour behind the brand panel. 18s and 24s so the two blobs
+     never settle into a visible rhythm, and small translations so it reads as
+     light shifting rather than as objects moving. */
+  .animate-drift {
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+
+  .animate-drift-slow {
+    animation: drift 24s ease-in-out infinite alternate-reverse;
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(6%, -4%, 0) scale(1.12);
+    }
+  }
+
+  /* Two rings easing towards each other and apart: the product's whole idea,
+     drawn once. Deliberately never fully overlapping. */
+  .animate-converge {
+    animation: converge 9s ease-in-out infinite alternate;
+  }
+
+  @keyframes converge {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(28%);
+    }
+  }
+
+  /* Faint grid, fading out downwards. Gives the panel a surface without
+     putting a picture on it. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black, transparent 75%);
+    -webkit-mask-image: linear-gradient(to bottom, black, transparent 75%);
+  }
+}

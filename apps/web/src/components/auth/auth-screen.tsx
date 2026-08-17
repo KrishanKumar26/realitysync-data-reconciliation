@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
 import { Check } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, Input, PasswordInput } from "@/components/ui/field";
@@ -92,15 +93,21 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
       <BrandPanel />
 
       <main className="flex items-center justify-center px-5 py-12 sm:px-8">
-        <div className="animate-rise w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+        <div className="w-full max-w-sm">
+          <div className="animate-rise-stagger mb-8 lg:hidden">
             <Wordmark />
           </div>
 
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1
+            className="animate-rise-stagger text-2xl font-semibold tracking-tight text-foreground"
+            style={{ "--stagger": 1 } as CSSProperties}
+          >
             {isSignUp ? "Create your workspace" : "Sign in"}
           </h1>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <p
+            className="animate-rise-stagger mt-2 text-sm leading-relaxed text-muted-foreground"
+            style={{ "--stagger": 2 } as CSSProperties}
+          >
             {isSignUp
               ? "Your workspace is where connected sources and reconciled state live."
               : "Continue to your RealitySync workspace."}
@@ -115,7 +122,12 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
             </div>
           ) : null}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+          <form
+            onSubmit={handleSubmit}
+            className="animate-rise-stagger mt-6 space-y-4"
+            style={{ "--stagger": 3 } as CSSProperties}
+            noValidate
+          >
             {isSignUp ? (
               <>
                 <Field label="Your name" error={fieldErrors.full_name}>
@@ -200,7 +212,12 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
               </p>
             ) : null}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button
+              type="submit"
+              size="md"
+              className="h-10 w-full"
+              disabled={submitting}
+            >
               {submitting
                 ? isSignUp
                   ? "Creating workspace…"
@@ -211,7 +228,10 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
             </Button>
           </form>
 
-          <p className="mt-6 text-sm text-muted-foreground">
+          <p
+            className="animate-rise-stagger mt-6 text-sm text-muted-foreground"
+            style={{ "--stagger": 4 } as CSSProperties}
+          >
             {isSignUp ? "Already have an account? " : "No account yet? "}
             <button
               type="button"
@@ -252,9 +272,11 @@ function Wordmark({ className }: { className?: string }) {
 function BrandPanel() {
   return (
     <aside className="relative hidden overflow-hidden border-r border-border bg-panel lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <div aria-hidden="true" className="bg-grid absolute inset-0 opacity-40" />
+
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full opacity-[0.18] blur-3xl"
+        className="animate-drift pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full opacity-[0.18] blur-3xl"
         style={{
           background:
             "radial-gradient(circle, var(--color-accent-cyan), transparent 70%)",
@@ -262,20 +284,28 @@ function BrandPanel() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -bottom-32 -right-16 h-96 w-96 rounded-full opacity-[0.14] blur-3xl"
+        className="animate-drift-slow pointer-events-none absolute -bottom-32 -right-16 h-96 w-96 rounded-full opacity-[0.14] blur-3xl"
         style={{
           background:
             "radial-gradient(circle, var(--color-accent-violet), transparent 70%)",
         }}
       />
 
-      <Wordmark className="relative" />
+      <Wordmark className="animate-rise-stagger relative" />
 
       <div className="relative max-w-md">
-        <p className="text-2xl font-semibold leading-snug tracking-tight text-foreground">
+        <ConvergingRings />
+
+        <p
+          className="animate-rise-stagger mt-10 text-3xl font-semibold leading-[1.15] tracking-tight text-foreground"
+          style={{ "--stagger": 1 } as CSSProperties}
+        >
           Know what is actually happening.
         </p>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+        <p
+          className="animate-rise-stagger mt-4 text-sm leading-relaxed text-muted-foreground"
+          style={{ "--stagger": 2 } as CSSProperties}
+        >
           RealitySync reads every connected source, compares what each one says,
           and shows you the current value together with the evidence behind it —
           including where they disagree.
@@ -288,10 +318,11 @@ function BrandPanel() {
             "Connects to PostgreSQL and MySQL over TLS, read-only.",
             "Records what each source said, and when it said it.",
             "Flags disagreements instead of silently picking a winner.",
-          ].map((line) => (
+          ].map((line, index) => (
             <li
               key={line}
-              className="flex items-start gap-2.5 text-sm text-muted-foreground"
+              className="animate-rise-stagger flex items-start gap-2.5 text-sm text-muted-foreground"
+              style={{ "--stagger": 3 + index } as CSSProperties}
             >
               <Check
                 className="mt-0.5 h-4 w-4 shrink-0 text-accent-cyan"
@@ -301,12 +332,37 @@ function BrandPanel() {
             </li>
           ))}
         </ul>
-        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+        <p
+          className="animate-rise-stagger border-t border-border pt-3 text-xs text-muted-foreground"
+          style={{ "--stagger": 6 } as CSSProperties}
+        >
           Every value comes from a real source. Nothing is estimated to fill a
           gap.
         </p>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Two sources, and the part where they agree.
+ *
+ * The one picture on the screen, and it is the product's argument rather than
+ * decoration: two rings drift towards each other and apart, overlapping but
+ * never coinciding. Purely decorative to a screen reader — the sentence
+ * underneath says the same thing in words.
+ */
+function ConvergingRings() {
+  return (
+    <div
+      aria-hidden="true"
+      className="animate-rise-stagger relative h-24 w-44"
+      style={{ "--stagger": 0 } as CSSProperties}
+    >
+      <span className="absolute left-2 top-2 h-20 w-20 rounded-full border border-accent-cyan/50" />
+      <span className="animate-converge absolute left-2 top-2 h-20 w-20 rounded-full border border-accent-violet/50" />
+      <span className="absolute left-2 top-2 h-20 w-20 rounded-full bg-accent-cyan/[0.07] blur-md" />
+    </div>
   );
 }
 
