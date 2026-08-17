@@ -127,10 +127,10 @@ def detect_value_conflict(
         # the thing that is unavailable, so the summary says so rather than
         # dressing a zero up as a result.
         summary = (
-            f"{len(candidates)} distinct values for '{attribute}'"
-            + (f", differing by {divergence} units" if divergence is not None else "")
-            + ". Neither is ranked above the other: the weighting specification "
-            "is unavailable."
+            f"The sources gave {len(candidates)} different answers for '{attribute}'"
+            + (f", {divergence} apart" if divergence is not None else "")
+            + ". Neither one is treated as more correct, because there is no "
+            "agreed way to decide which source to trust more."
         )
 
     return ConflictFinding(
@@ -200,8 +200,9 @@ def detect_source_disagreement(
         severity=severity,
         score=score,
         summary=(
-            f"Independent sources report different values for '{attribute}'. "
-            "This usually indicates a systemic problem rather than a single bad row."
+            f"Two systems disagree about '{attribute}'. When separate systems "
+            "disagree, the cause is usually how they are set up or synced, not one "
+            "bad row."
         ),
         fingerprint=conflict_fingerprint(
             attribute=attribute,

@@ -310,7 +310,7 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
         <PanelHeader
           icon={<Gauge />}
           title="Confidence"
-          description="Not available — and deliberately not guessed."
+          description="Not available — and we will not guess it."
           action={<Badge tone="degraded">Unavailable</Badge>}
         />
         <PanelBody className="space-y-5">
@@ -358,8 +358,8 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
                     className="h-3.5 w-3.5 text-status-degraded"
                     aria-hidden="true"
                   />
-                  {confidence.missing_specifications.length} specifications
-                  required
+                  {confidence.missing_specifications.length} things still to be
+                  decided
                 </span>
               </summary>
               <ul className="mt-3 space-y-2">
@@ -376,7 +376,7 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
         </PanelBody>
         <PanelFooter>
           <span className="tabular">
-            Algorithm: {confidence.algorithm_version}
+            Engine version: {confidence.algorithm_version}
           </span>
         </PanelFooter>
       </Panel>
@@ -656,7 +656,7 @@ function ConflictPanel({ dashboard }: { dashboard: Dashboard }) {
             { label: "Open", value: conflicts.open, danger: true },
             { label: "Acknowledged", value: conflicts.acknowledged },
             { label: "Resolved", value: conflicts.resolved },
-            { label: "Not graded", value: conflicts.ungraded },
+            { label: "Severity unknown", value: conflicts.ungraded },
           ].map((item) => (
             <div
               key={item.label}
@@ -693,9 +693,9 @@ function ConflictPanel({ dashboard }: { dashboard: Dashboard }) {
             <span className="tabular font-medium text-foreground">
               {conflicts.ungraded}
             </span>{" "}
-            detected but not graded. Assigning a severity needs the confidence
-            specification, so they are shown ungraded rather than assumed
-            harmless.
+            found, but not rated for seriousness. Rating them needs a scoring
+            rule that has not been agreed yet, so they are shown unrated rather
+            than treated as harmless.
           </p>
         ) : null}
       </PanelBody>

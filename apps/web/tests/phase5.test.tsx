@@ -123,8 +123,8 @@ describe("Conflicts page", () => {
 
     await renderWithSession(<ConflictsPage />);
 
-    expect(await screen.findByText("Not graded")).toBeInTheDocument();
-    expect(screen.getByText("Not scored")).toBeInTheDocument();
+    expect(await screen.findByText("Severity unknown")).toBeInTheDocument();
+    expect(screen.getByText("Not scored yet")).toBeInTheDocument();
     expect(screen.queryByText("low")).not.toBeInTheDocument();
   });
 
@@ -134,7 +134,7 @@ describe("Conflicts page", () => {
     await renderWithSession(<ConflictsPage />);
 
     expect(
-      await screen.findByText(/requires the confidence specification/i),
+      await screen.findByText(/scoring rule that has not been agreed/i),
     ).toBeInTheDocument();
   });
 
@@ -150,7 +150,7 @@ describe("Conflicts page", () => {
 
     expect(await screen.findByText("high")).toBeInTheDocument();
     expect(screen.getByText("0.594")).toBeInTheDocument();
-    expect(screen.queryByText("Not graded")).not.toBeInTheDocument();
+    expect(screen.queryByText("Severity unknown")).not.toBeInTheDocument();
   });
 
   it("moves a conflict through its lifecycle", async () => {
@@ -234,8 +234,8 @@ describe("Timeline page", () => {
     await renderWithSession(<TimelinePage />);
 
     await screen.findByText("Warehouse");
-    expect(screen.getAllByText("true at").length).toBe(2);
-    expect(screen.getAllByText("learned at").length).toBe(2);
+    expect(screen.getAllByText("happened").length).toBe(2);
+    expect(screen.getAllByText("we found out").length).toBe(2);
   });
 
   it("flags a late arrival rather than leaving it to be inferred", async () => {
@@ -247,9 +247,9 @@ describe("Timeline page", () => {
 
     await renderWithSession(<TimelinePage />);
 
-    expect(await screen.findByText("arrived 4d late")).toBeInTheDocument();
+    expect(await screen.findByText("told to us 4d late")).toBeInTheDocument();
     expect(
-      screen.getByText(/1 arrived after the fact was true/),
+      screen.getByText(/1 reached us after they had already happened/),
     ).toBeInTheDocument();
   });
 
@@ -286,7 +286,9 @@ describe("Timeline page", () => {
 
     await renderWithSession(<TimelinePage />);
 
-    expect(await screen.findByText(/both views agree/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/both views show the same order/),
+    ).toBeInTheDocument();
   });
 
   it("reports truncation instead of implying a complete history", async () => {

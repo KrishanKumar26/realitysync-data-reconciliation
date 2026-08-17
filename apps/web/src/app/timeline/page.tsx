@@ -32,17 +32,25 @@ type State =
   | { kind: "ready"; entities: Entity[]; timeline: Timeline }
   | { kind: "error"; message: string };
 
+/** What the source's date column actually means, in words. */
+const DATE_MEANING: Record<string, string> = {
+  observed: "when it was true",
+  recorded: "when the system wrote it",
+  ingest_fallback: "when we read it",
+};
+
 const AXES: { value: TimeAxis; label: string; question: string }[] = [
   {
     value: "event",
     label: "What was true",
-    question: "Ordered by when each fact was true, according to the source.",
+    question:
+      "In the order things actually happened, according to your systems.",
   },
   {
     value: "knowledge",
     label: "What we knew",
     question:
-      "Ordered by when RealitySync learned each fact. Differs from the other view exactly where something arrived late.",
+      "In the order RealitySync found out. This differs from the other view wherever news reached us late.",
   },
 ];
 
@@ -100,7 +108,7 @@ export default function TimelinePage() {
     <div className="space-y-6">
       <PageHeader
         title="Timeline"
-        description="Records, events and changes over time."
+        description="What each system said, and when it said it."
       />
 
       {state.kind === "loading" ? (
@@ -199,13 +207,13 @@ export default function TimelinePage() {
               }`}
               description={
                 state.timeline.late_arrival_count > 0
-                  ? `${state.timeline.late_arrival_count} arrived after the fact was true — the two views differ for those.`
-                  : "Every record arrived as its fact became true, so both views agree."
+                  ? `${state.timeline.late_arrival_count} reached us after they had already happened. The two views differ for those.`
+                  : "Nothing reached us late, so both views show the same order."
               }
               action={
                 state.timeline.late_arrival_count > 0 ? (
                   <Badge tone="degraded" dot>
-                    {state.timeline.late_arrival_count} late
+                    {state.timeline.late_arrival_count} reached us late
                   </Badge>
                 ) : (
                   <Badge tone="healthy" dot>
@@ -256,27 +264,30 @@ export default function TimelinePage() {
                           </span>
                           {event.arrived_late ? (
                             <Badge tone="degraded" size="sm">
-                              arrived {formatLag(event.lag_seconds)} late
+                              told to us {formatLag(event.lag_seconds)} late
                             </Badge>
                           ) : null}
                         </div>
 
                         <dl className="tabular mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
                           <div className="flex gap-1.5">
-                            <dt>true at</dt>
+                            <dt>happened</dt>
                             <dd className="text-foreground">
                               {new Date(event.event_time).toLocaleString()}
                             </dd>
                           </div>
                           <div className="flex gap-1.5">
-                            <dt>learned at</dt>
+                            <dt>we found out</dt>
                             <dd className="text-foreground">
                               {new Date(event.ingested_at).toLocaleString()}
                             </dd>
                           </div>
                           <div className="flex gap-1.5">
-                            <dt>from</dt>
-                            <dd>{event.event_time_semantics}</dd>
+                            <dt>date means</dt>
+                            <dd>
+                              {DATE_MEANING[event.event_time_semantics] ??
+                                event.event_time_semantics}
+                            </dd>
                           </div>
                         </dl>
 

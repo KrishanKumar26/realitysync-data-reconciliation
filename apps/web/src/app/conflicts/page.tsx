@@ -105,7 +105,7 @@ export default function ConflictsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Conflicts"
-        description="Where two sources describe the same thing differently."
+        description="Where two of your systems say different things about the same thing."
       />
 
       {/* Segmented filter. Reads as one control rather than five buttons that
@@ -166,7 +166,7 @@ export default function ConflictsPage() {
                   ? "No open conflicts"
                   : `No ${filter === "all" ? "" : filter} conflicts`
               }
-              description="A conflict appears when two sources state different values for the same field of the same item. Nothing is shown here until that actually happens."
+              description="A conflict appears when two of your systems give different answers about the same thing. Nothing is shown here until that actually happens."
             />
           </PanelBody>
         </Panel>
@@ -216,7 +216,7 @@ function ConflictCard({
         description={conflict.summary}
         action={
           <Badge tone={SEVERITY_TONE[conflict.severity]} dot>
-            {graded ? conflict.severity : "Not graded"}
+            {graded ? conflict.severity : "Severity unknown"}
           </Badge>
         }
       />
@@ -228,8 +228,8 @@ function ConflictCard({
               conflict.entity_natural_key ?? conflict.entity_id.slice(0, 8),
             ],
             ["Field", conflict.attribute],
-            ["Divergence", conflict.details.divergence ?? "—"],
-            ["Score", conflict.score ?? "Not scored"],
+            ["Difference", conflict.details.divergence ?? "—"],
+            ["Score", conflict.score ?? "Not scored yet"],
           ].map(([label, value]) => (
             <div key={label as string}>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -245,7 +245,7 @@ function ConflictCard({
         {competing.length > 0 ? (
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              What each side says
+              What each system says
             </p>
             <ul className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
               {competing.map((candidate, index) => (
@@ -296,10 +296,10 @@ function ConflictCard({
               aria-hidden="true"
             />
             <span>
-              This disagreement was detected from the evidence, which needs no
-              formula. Grading it — a severity and a 0–1 score — requires the
-              confidence specification, which is not yet available. It is shown
-              ungraded rather than assumed harmless.
+              We can see the sources disagree — that needs no calculation.
+              Saying how serious it is would need a scoring rule that has not
+              been agreed yet. So it is shown without a severity, rather than
+              quietly treated as harmless.
             </span>
           </p>
         ) : null}

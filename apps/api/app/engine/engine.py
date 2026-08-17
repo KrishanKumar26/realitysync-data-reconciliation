@@ -252,17 +252,18 @@ def _unscored(
         status = RealityStatus.CONFIRMED
         sources = len(winner.source_ids)
         reason = (
-            f"{sources} {'source' if sources == 1 else 'sources'} asserted this value "
-            f"and none asserted a different one. Selected without weighting, which "
-            f"is why no confidence accompanies it."
+            f"{sources} {'source' if sources == 1 else 'sources'} reported this value "
+            f"and none reported anything different, so this is the value. "
+            f"No score is shown because there is no agreed way to calculate one yet."
         )
         valid_from = winner.latest_event_time
     else:
         status = RealityStatus.CONTESTED
         reason = (
-            f"{len(candidates)} competing values were asserted. Choosing between them "
-            f"requires the weighting specification, which is unavailable, so no value "
-            f"has been selected. Every candidate is recorded as evidence."
+            f"The sources gave {len(candidates)} different answers. Picking one would "
+            f"mean trusting a source more than the others, and there is no agreed way "
+            f"to decide that yet — so nothing was picked. All the answers are kept "
+            f"below, with which source said what."
         )
         # The earliest moment any competing claim was made. Using the latest
         # would imply the newest candidate had been preferred.

@@ -821,6 +821,6 @@ def test_ungraded_conflict_summary_claims_no_winner() -> None:
 
     assert "leads" not in summary
     assert "percentage points" not in summary
-    assert "Neither is ranked above the other" in summary
+    assert "Neither one is treated as more correct" in summary
     # The values and the gap are still reported; only the ranking is withheld.
-    assert "2 distinct values" in summary
+    assert "2 different answers" in summary

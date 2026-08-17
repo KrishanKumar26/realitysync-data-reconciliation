@@ -196,7 +196,11 @@ async def test_competing_values_select_nothing(client: AsyncClient, db: AsyncSes
     assert state.value is None
     assert state.value_selected is False
     assert state.confidence is None
-    assert "unavailable" in state.selection_reason
+    # The reason must say a value was withheld and why — in whatever words the
+    # engine currently uses. Both halves matter: "nothing was picked" without a
+    # cause reads as a failure, and a cause without the outcome reads as trivia.
+    assert "nothing was picked" in state.selection_reason
+    assert "no agreed way" in state.selection_reason
 
     # Both competing values survive as evidence, so nothing is lost by
     # declining to pick one.

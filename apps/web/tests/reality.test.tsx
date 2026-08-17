@@ -60,7 +60,7 @@ const CONTESTED_STATE = {
   value_selected: false,
   status: "contested",
   selection_reason:
-    "2 competing values were asserted. Choosing between them requires the weighting specification, which is unavailable, so no value has been selected.",
+    "The sources gave 2 different answers. Picking one would mean trusting a source more than the others, and there is no agreed way to decide that yet — so nothing was picked.",
 };
 
 const EVIDENCE = [
@@ -197,7 +197,7 @@ describe("Reality page", () => {
 
     const row = (await screen.findByText("quantity")).closest("li");
     expect(within(row!).getByText("42")).toBeInTheDocument();
-    expect(within(row!).getByText(/confirmed/)).toBeInTheDocument();
+    expect(within(row!).getByText("sources agree")).toBeInTheDocument();
   });
 
   it("says no value was selected rather than rendering null", async () => {
@@ -213,8 +213,8 @@ describe("Reality page", () => {
     await openEntity();
 
     const row = (await screen.findByText("location")).closest("li");
-    expect(within(row!).getByText(/No value selected/)).toBeInTheDocument();
-    expect(within(row!).getByText(/contested/)).toBeInTheDocument();
+    expect(within(row!).getByText(/No value chosen/)).toBeInTheDocument();
+    expect(within(row!).getByText("sources disagree")).toBeInTheDocument();
     expect(within(row!).queryByText("null")).not.toBeInTheDocument();
   });
 
@@ -305,9 +305,9 @@ describe("Reality page", () => {
 
     // "blocked" must not read as "nothing happened" — states were written.
     expect(
-      await screen.findByText("Values recorded without confidence scores"),
+      await screen.findByText("Values saved, but without a score"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Blocked on: freshness/)).toBeInTheDocument();
+    expect(screen.getByText(/Still needed: freshness/)).toBeInTheDocument();
   });
 
   it("renders states in the order the API returned them", async () => {

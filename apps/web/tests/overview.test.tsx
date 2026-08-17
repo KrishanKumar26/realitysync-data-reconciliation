@@ -239,7 +239,9 @@ describe("Overview", () => {
         /approved confidence specification is unavailable/i,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("2 specifications required")).toBeInTheDocument();
+    expect(
+      screen.getByText("2 things still to be decided"),
+    ).toBeInTheDocument();
   });
 
   it("shows a real average when confidence becomes available", async () => {
@@ -305,9 +307,9 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    expect(await screen.findByText("Not graded")).toBeInTheDocument();
+    expect(await screen.findByText("Severity unknown")).toBeInTheDocument();
     expect(
-      screen.getByText(/severity needs the confidence specification/i),
+      screen.getByText(/scoring rule that has not been agreed/i),
     ).toBeInTheDocument();
   });
 
@@ -431,9 +433,9 @@ describe("Reality page", () => {
     // nothing when scoring was blocked. States are written now — only the score
     // is withheld — so a heading saying nothing was produced would be false.
     expect(
-      await screen.findByText("Values recorded without confidence scores"),
+      await screen.findByText("Values saved, but without a score"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Blocked on: freshness/)).toBeInTheDocument();
+    expect(screen.getByText(/Still needed: freshness/)).toBeInTheDocument();
     // Detection still ran — that is the useful half.
     expect(screen.getByText(/6/)).toBeInTheDocument();
   });
@@ -474,7 +476,7 @@ describe("Reality page", () => {
     // showing one that does, which is what will happen once the specification
     // arrives.
     expect(screen.getByText(/71\.0%/)).toBeInTheDocument();
-    expect(screen.getByText(/contested/)).toBeInTheDocument();
+    expect(screen.getByText(/sources disagree/)).toBeInTheDocument();
     expect(
       screen.getByText("Selected from 2 competing values."),
     ).toBeInTheDocument();

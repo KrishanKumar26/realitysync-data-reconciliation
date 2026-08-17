@@ -41,6 +41,15 @@ type State =
  * forgot", when in fact nobody has defined how to measure.
  */
 
+/** The engine's status values, in words a reader does not have to decode. */
+const STATUS_LABEL: Record<string, string> = {
+  confirmed: "sources agree",
+  contested: "sources disagree",
+  stale: "out of date",
+  provisional: "not final",
+  unknown: "unknown",
+};
+
 /** How a status reads, and how confident the reading is. */
 const STATUS_TONE: Record<string, BadgeTone> = {
   confirmed: "healthy",
@@ -106,7 +115,7 @@ export default function RealityPage() {
     <div className="space-y-6">
       <PageHeader
         title="Current State"
-        description="Items, their current values and the evidence behind them."
+        description="What each of your things is right now, and where that came from."
       />
 
       {state.kind === "loading" ? (
@@ -197,8 +206,8 @@ export default function RealityPage() {
             <Panel className="animate-rise border-status-degraded/25">
               <PanelHeader
                 icon={<AlertTriangle />}
-                title="Values recorded without confidence scores"
-                description="RealitySync ran and reported exactly what is missing."
+                title="Values saved, but without a score"
+                description="Everything else worked. Only the score is missing, and it says why."
                 action={<Badge tone="degraded">Partial</Badge>}
               />
               <PanelBody className="space-y-4">
@@ -206,7 +215,7 @@ export default function RealityPage() {
                   {[
                     ["Fields read", lastRun.attributes_considered],
                     ["Values written", lastRun.states_written],
-                    ["Without a score", lastRun.states_unscored],
+                    ["No score yet", lastRun.states_unscored],
                     ["Conflicts found", lastRun.conflicts_written],
                   ].map(([label, value]) => (
                     <div
@@ -233,15 +242,15 @@ export default function RealityPage() {
 
                 {lastRun.blocked_on.length > 0 ? (
                   <p className="tabular text-xs text-muted-foreground">
-                    Blocked on: {lastRun.blocked_on.join(", ")}
+                    Still needed: {lastRun.blocked_on.join(", ")}
                   </p>
                 ) : null}
 
                 {lastRun.missing_specifications.length > 0 ? (
                   <details className="rounded-md border border-border bg-muted/40 px-4 py-3">
                     <summary className="cursor-pointer text-sm font-medium text-foreground">
-                      {lastRun.missing_specifications.length} specifications
-                      required
+                      {lastRun.missing_specifications.length} things still to be
+                      decided
                     </summary>
                     <ul className="mt-3 space-y-2">
                       {lastRun.missing_specifications.map((spec) => (
@@ -278,7 +287,7 @@ export default function RealityPage() {
             <PanelHeader
               icon={<Target />}
               title="Current values"
-              description="One per field, with its evidence and the reason it was chosen."
+              description="One line per field, with the reason and where it came from."
               action={
                 state.states.length > 0 ? (
                   <Badge tone="neutral">
@@ -293,7 +302,7 @@ export default function RealityPage() {
                 <EmptyState
                   icon={<Target />}
                   title="No values yet"
-                  description="Run a recalculation to see what can be established. While the confidence formula is unavailable, values are still recorded — with no score, and the reason stated."
+                  description="Press Recalculate to see what your sources currently say. Values are recorded even without a score — the reason is shown on each one."
                   className="py-10"
                 />
               ) : (
@@ -309,7 +318,8 @@ export default function RealityPage() {
                             tone={STATUS_TONE[realityState.status] ?? "neutral"}
                             dot
                           >
-                            {realityState.status}
+                            {STATUS_LABEL[realityState.status] ??
+                              realityState.status}
                           </Badge>
                           {/* Never "0%" and never "null%". An unavailable score
                               is stated as unavailable — rendering a number here
@@ -333,8 +343,8 @@ export default function RealityPage() {
                              box would read as "the value is null", which is a
                              different and false claim. */
                           <p className="rounded-md border border-dashed border-border px-3.5 py-3 text-xs text-muted-foreground">
-                            No value selected — the sources disagree and nothing
-                            available ranks one above another.
+                            No value chosen — the sources disagree, and there is
+                            no agreed way to decide which one to trust.
                           </p>
                         )}
                       </div>
@@ -345,7 +355,7 @@ export default function RealityPage() {
 
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                         <Badge tone="outline" size="sm">
-                          {realityState.supporting_count} supporting
+                          {realityState.supporting_count} agree
                         </Badge>
                         <Badge
                           tone={
@@ -355,7 +365,7 @@ export default function RealityPage() {
                           }
                           size="sm"
                         >
-                          {realityState.dissenting_count} dissenting
+                          {realityState.dissenting_count} disagree
                         </Badge>
                         <Badge tone="outline" size="sm">
                           {realityState.source_count}{" "}
