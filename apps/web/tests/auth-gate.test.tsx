@@ -85,7 +85,7 @@ describe("AuthGate", () => {
     renderGate();
     await waitForSessionResolved();
 
-    expect(screen.getByRole("status")).toHaveTextContent("Your session ended");
+    expect(screen.getByRole("status")).toHaveTextContent("You were signed out");
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 

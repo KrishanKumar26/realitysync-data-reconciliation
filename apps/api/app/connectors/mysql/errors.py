@@ -48,7 +48,7 @@ _ERROR_NUMBER_MAP: dict[int, tuple[ConnectorErrorCode, str, str | None]] = {
     ),
     1054: (
         ConnectorErrorCode.NOT_FOUND,
-        "A configured column no longer exists in the source table.",
+        "A column RealitySync was reading is gone from that table.",
         "Run schema discovery again and reconfigure the stream.",
     ),
     1064: (
@@ -107,13 +107,14 @@ _TEXT_PATTERNS: tuple[tuple[tuple[str, ...], ConnectorErrorCode, str, str | None
         ("ssl", "tls"),
         ConnectorErrorCode.TLS_FAILED,
         "The encrypted connection could not be established.",
-        "Confirm the source database supports TLS.",
+        "This database does not offer an encrypted connection. RealitySync will not connect "
+        "without one.",
     ),
     (
         ("timed out", "timeout"),
         ConnectorErrorCode.TIMEOUT,
         "The source database did not respond in time.",
-        "Check that the host is reachable and not overloaded.",
+        "The database did not answer in time. It may be busy or unreachable.",
     ),
     (
         ("name or service not known", "nodename nor servname", "getaddrinfo", "name resolution"),
@@ -170,7 +171,7 @@ def map_exception(exc: BaseException, *, operation: str) -> ConnectorError:
             ConnectorErrorCode.TIMEOUT,
             "The source database did not respond in time.",
             detail=detail,
-            remediation="Check that the host is reachable and not overloaded.",
+            remediation="The database did not answer in time. It may be busy or unreachable.",
         )
 
     text = str(exc).lower()
@@ -182,5 +183,5 @@ def map_exception(exc: BaseException, *, operation: str) -> ConnectorError:
         ConnectorErrorCode.UNKNOWN,
         "The source database could not be reached.",
         detail=detail,
-        remediation="Check the connection details, then try again.",
+        remediation="Check the address, database name, username and password, then try again.",
     )

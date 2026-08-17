@@ -63,7 +63,7 @@ export function SchemaExplorer({
       <EmptyState
         icon={<Search />}
         title="Tables not loaded yet"
-        description="RealitySync will read table and column names from the database's catalogue. No table data is read."
+        description="RealitySync will ask your database what tables it has. It does not look inside them."
         action={
           <Button onClick={() => void discover()}>
             <Search aria-hidden="true" />
@@ -198,9 +198,9 @@ export function SchemaExplorer({
               ) : table.primary_key_columns.length === 0 ? (
                 <span
                   className="shrink-0 text-xs text-muted-foreground"
-                  title="Without a primary key a row has no stable identity."
+                  title="This table has no unique id column, so a row cannot be tracked over time."
                 >
-                  No primary key
+                  No unique id
                 </span>
               ) : (
                 <Button
@@ -226,18 +226,20 @@ const SEMANTICS: {
 }[] = [
   {
     value: "observed",
-    label: "Observed",
-    description: "When the fact was actually true.",
+    label: "When it was true",
+    description: "Pick this if the date says when the thing actually happened.",
   },
   {
     value: "recorded",
-    label: "Recorded",
-    description: "When the source system wrote the row.",
+    label: "When the system saved it",
+    description:
+      "Pick this if the date says when the row was saved, not when it happened.",
   },
   {
     value: "ingest_fallback",
-    label: "No time column",
-    description: "Use the time RealitySync read the row.",
+    label: "No date column",
+    description:
+      "No usable date — RealitySync will use the time it read the row.",
   },
 ];
 
@@ -301,7 +303,7 @@ function StreamConfigForm({
           Add <span className="tabular">{table.qualified_name}</span>
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Rows are identified by:{" "}
+          Each row is identified by:{" "}
           <span className="tabular">
             {table.primary_key_columns.join(", ")}
           </span>

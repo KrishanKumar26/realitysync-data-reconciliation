@@ -78,7 +78,7 @@ export default function SourcesPage() {
           <PanelHeader
             icon={<Plug />}
             title="Connect a database"
-            description="RealitySync connects outbound over TLS and reads only what you configure."
+            description="RealitySync only reads. It connects over an encrypted link, and only to the tables you pick."
           />
           <PanelBody>
             <AddSourceForm
@@ -173,7 +173,7 @@ export default function SourcesPage() {
                     {SOURCE_KIND_LABELS[source.kind]}
                   </Badge>
                   <Badge tone="neutral" size="sm">
-                    TLS {source.connection.ssl_mode}
+                    Encrypted
                   </Badge>
                 </div>
 

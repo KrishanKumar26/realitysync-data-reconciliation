@@ -183,7 +183,7 @@ describe("AuthScreen", () => {
 
     await renderWithSession(<AuthScreen expired />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Your session ended");
+    expect(screen.getByRole("status")).toHaveTextContent("You were signed out");
   });
 
   it("labels every field for assistive technology", async () => {

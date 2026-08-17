@@ -67,7 +67,7 @@ describe("Sources page", () => {
       within(link).getByText("db.example.com:5432/warehouse"),
     ).toBeInTheDocument();
     expect(within(link).getByText("PostgreSQL")).toBeInTheDocument();
-    expect(within(link).getByText("TLS require")).toBeInTheDocument();
+    expect(within(link).getByText("Encrypted")).toBeInTheDocument();
   });
 
   it("surfaces a load failure rather than showing an empty list", async () => {
@@ -377,10 +377,14 @@ describe("SchemaExplorer", () => {
     expect(
       screen.getByText(/What does this table's timestamp mean\?/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Observed/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Recorded/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("radio", { name: /No time column/ }),
+      screen.getByRole("radio", { name: /When it was true/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /When the system saved it/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /No date column/ }),
     ).toBeInTheDocument();
   });
 
@@ -397,7 +401,7 @@ describe("SchemaExplorer", () => {
     );
     await user.click(screen.getByRole("button", { name: "Find tables" }));
     await user.click(await screen.findByRole("button", { name: "Add" }));
-    await user.click(screen.getByRole("radio", { name: /Observed/ }));
+    await user.click(screen.getByRole("radio", { name: /When it was true/ }));
     await user.click(screen.getByRole("button", { name: "Add table" }));
 
     await waitFor(() => {
@@ -437,7 +441,7 @@ describe("SchemaExplorer", () => {
     );
     await user.click(screen.getByRole("button", { name: "Find tables" }));
 
-    expect(await screen.findByText("No primary key")).toBeInTheDocument();
+    expect(await screen.findByText("No unique id")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Add" }),
     ).not.toBeInTheDocument();

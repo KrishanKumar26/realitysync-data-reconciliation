@@ -282,7 +282,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<Plug />}
           title="Connection"
-          description="Credentials are encrypted at rest and are never returned by the API."
+          description="Your password is stored scrambled and is never shown again — not on this page, not anywhere."
           action={
             !editing ? (
               <Button
@@ -317,7 +317,7 @@ export default function SourceDetailPage() {
                   ],
                   ["Database", source.connection.database],
                   ["Username", source.connection.username],
-                  ["TLS mode", source.connection.ssl_mode],
+                  ["Encryption", source.connection.ssl_mode],
                   ["Password", "•••••••• stored"],
                   [
                     "Last connected",
@@ -395,7 +395,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<Table2 />}
           title="Tables"
-          description="Tables RealitySync reads from, and how often."
+          description="The tables RealitySync reads, and how often it checks them."
           action={
             <Badge tone={enabledStreams.length > 0 ? "healthy" : "neutral"}>
               {enabledStreams.length} of {streams.length} enabled
@@ -415,7 +415,7 @@ export default function SourceDetailPage() {
               <Table>
                 <THead>
                   <TH>Table</TH>
-                  <TH>Identified by</TH>
+                  <TH>Row id</TH>
                   <TH>Date column</TH>
                   <TH align="right">Records</TH>
                   <TH>Schedule</TH>
@@ -448,7 +448,7 @@ export default function SourceDetailPage() {
                           </Badge>
                         ) : (
                           <Badge tone="neutral" size="sm">
-                            not scheduled
+                            not checked automatically
                           </Badge>
                         )}
                       </TD>
@@ -480,7 +480,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<Search />}
           title="Available tables"
-          description="Read from the database's own catalogue. No table data is read."
+          description="This is the list of tables your database reports. Nothing inside them is read yet."
         />
         <PanelBody className="p-0">
           <SchemaExplorer
@@ -495,7 +495,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<RefreshCw />}
           title="Sync history"
-          description="Each run reads the enabled tables and adds any rows it has not seen before."
+          description="Each run reads the tables you turned on and saves anything it has not seen before."
         />
         <PanelBody className={runs.length > 0 ? "p-0" : undefined}>
           {runs.length === 0 ? (
@@ -516,7 +516,7 @@ export default function SourceDetailPage() {
                   <TH>Status</TH>
                   <TH>Started</TH>
                   <TH align="right">Duration</TH>
-                  <TH align="right">Rows seen</TH>
+                  <TH align="right">Rows read</TH>
                   <TH align="right">New</TH>
                   <TH align="right">Skipped</TH>
                 </THead>
@@ -570,7 +570,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<Inbox />}
           title="Records"
-          description="What this source stated, most recently received first. These are never edited."
+          description="Exactly what this database said, newest first. These are never changed afterwards."
           action={
             observations.length > 0 ? (
               <Badge tone="neutral">
@@ -621,7 +621,7 @@ export default function SourceDetailPage() {
         <PanelHeader
           icon={<Trash2 />}
           title="Remove this source"
-          description="Deletes the source, its stored credentials, its tables and every record read from it. This cannot be undone."
+          description="Removes this database, its saved password, the tables you picked and every record read from it. This cannot be undone."
           action={
             <ConfirmAction
               label="Delete source"

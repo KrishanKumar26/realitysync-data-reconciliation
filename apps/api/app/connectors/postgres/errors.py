@@ -27,12 +27,14 @@ _SQLSTATE_MAP: dict[str, tuple[ConnectorErrorCode, str, str | None]] = {
     "28P01": (
         ConnectorErrorCode.AUTHENTICATION_FAILED,
         "The database rejected the username or password.",
-        "Check the credentials, then confirm the role can sign in from this network.",
+        "Check the username and password, and that this account is allowed to sign in from "
+        "outside your network.",
     ),
     "28000": (
         ConnectorErrorCode.AUTHENTICATION_FAILED,
         "The database refused the connection for this role.",
-        "Check pg_hba.conf allows this role to connect over TLS from RealitySync's address.",
+        "Your database is set to refuse this account from outside. Ask whoever manages it to "
+        "allow this user to connect over an encrypted link.",
     ),
     # Class 3D / 3F — missing database or schema
     "3D000": (
@@ -58,7 +60,7 @@ _SQLSTATE_MAP: dict[str, tuple[ConnectorErrorCode, str, str | None]] = {
     ),
     "42703": (
         ConnectorErrorCode.NOT_FOUND,
-        "A configured column no longer exists in the source table.",
+        "A column RealitySync was reading is gone from that table.",
         "Run schema discovery again and update the stream's columns.",
     ),
     # Class 53 — insufficient resources
@@ -76,7 +78,7 @@ _SQLSTATE_MAP: dict[str, tuple[ConnectorErrorCode, str, str | None]] = {
     "57P01": (
         ConnectorErrorCode.UNREACHABLE,
         "The database server shut down the connection.",
-        "Check whether the source is restarting, then retry.",
+        "The database may be restarting. Wait a moment and try again.",
     ),
     "57P03": (
         ConnectorErrorCode.UNREACHABLE,
@@ -118,7 +120,8 @@ _TEXT_PATTERNS: tuple[tuple[tuple[str, ...], ConnectorErrorCode, str, str | None
         ("ssl error", "sslv3", "tlsv1", "wrong version number"),
         ConnectorErrorCode.TLS_FAILED,
         "TLS negotiation with the database failed.",
-        "Confirm the port speaks PostgreSQL over TLS.",
+        "Something is answering on that port, but it does not look like a PostgreSQL database "
+        "with encryption turned on.",
     ),
     (
         (
@@ -129,7 +132,8 @@ _TEXT_PATTERNS: tuple[tuple[tuple[str, ...], ConnectorErrorCode, str, str | None
         ),
         ConnectorErrorCode.UNREACHABLE,
         "The database host name could not be resolved.",
-        "Check the host name. RealitySync needs a publicly resolvable address.",
+        "That address could not be found. It must be reachable from the internet — a database on "
+        "your own computer will not work.",
     ),
     (
         ("connection refused",),
@@ -219,12 +223,17 @@ def map_exception(exc: BaseException, *, operation: str) -> ConnectorError:
             ConnectorErrorCode.PERMISSION_DENIED,
             "The database rejected the query.",
             detail=detail,
-            remediation="Check the RealitySync role's privileges on this schema and table.",
+            remediation=(
+                "This account cannot read that table. Grant it read access, "
+                "or use an account that already has it."
+            ),
         )
 
     return ConnectorError(
         ConnectorErrorCode.UNKNOWN,
         "The database connection failed for an unexpected reason.",
         detail=detail,
-        remediation="Check the source's logs. The full error is in RealitySync's server log.",
+        remediation=(
+            "Something unexpected went wrong. The full details are in RealitySync's server log."
+        ),
     )

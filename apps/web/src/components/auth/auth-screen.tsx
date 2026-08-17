@@ -109,8 +109,8 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
             style={{ "--stagger": 2 } as CSSProperties}
           >
             {isSignUp
-              ? "Your workspace is where connected sources and reconciled state live."
-              : "Continue to your RealitySync workspace."}
+              ? "A workspace holds your connected databases and everything RealitySync works out from them."
+              : "Welcome back."}
           </p>
 
           {expired ? (
@@ -118,7 +118,7 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
               role="status"
               className="mt-5 rounded-md border border-border bg-muted px-3.5 py-2.5 text-sm text-muted-foreground"
             >
-              Your session ended. Sign in to continue.
+              You were signed out. Sign in again to continue.
             </div>
           ) : null}
 

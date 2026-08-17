@@ -33,9 +33,12 @@ import {
  */
 
 const SSL_MODES: { value: SslMode; label: string }[] = [
-  { value: "require", label: "require — encrypted, certificate not verified" },
-  { value: "verify-ca", label: "verify-ca — chain verified" },
-  { value: "verify-full", label: "verify-full — chain and hostname verified" },
+  { value: "require", label: "Encrypted (recommended for most)" },
+  { value: "verify-ca", label: "Encrypted + check the certificate" },
+  {
+    value: "verify-full",
+    label: "Encrypted + check certificate and address (strictest)",
+  },
 ];
 
 function mapValidationErrors(details: unknown): Record<string, string> {
@@ -203,7 +206,7 @@ export function EditSourceForm({
       </Field>
 
       <Select
-        label="TLS mode"
+        label="Encryption"
         value={sslMode}
         onChange={(event) => setSslMode(event.target.value as SslMode)}
         containerClassName="sm:max-w-md"

@@ -68,7 +68,7 @@ function SessionLoading() {
       role="status"
       aria-live="polite"
     >
-      <span className="sr-only">Checking your session</span>
+      <span className="sr-only">Signing you in</span>
 
       <aside className="hidden border-r border-border bg-panel lg:block">
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">

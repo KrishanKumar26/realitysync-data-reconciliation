@@ -70,7 +70,7 @@ export default function SettingsPage() {
         <PanelHeader
           icon={<Building2 />}
           title="Workspace"
-          description="The organization this session is acting in."
+          description="The workspace you are working in right now."
         />
         <PanelBody>
           {activeOrganization ? (
@@ -85,7 +85,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Identifier
+                  Short name
                 </dt>
                 <dd className="tabular mt-1 text-sm text-foreground">
                   {activeOrganization.slug}
@@ -102,7 +102,7 @@ export default function SettingsPage() {
             </dl>
           ) : (
             <p className="text-sm text-muted-foreground">
-              This session has no workspace selected.
+              No workspace is selected right now.
             </p>
           )}
         </PanelBody>
@@ -180,17 +180,17 @@ export default function SettingsPage() {
         <PanelBody>
           <ul className="space-y-3 text-sm leading-relaxed text-muted-foreground">
             <li>
-              Sessions are stored server-side and can be revoked immediately.
-              Signing out ends the session on the server, not just in this
-              browser.
+              Signing out really signs you out. It ends your session on the
+              server, not just in this browser, so a stolen browser session
+              stops working immediately.
             </li>
             <li>
-              Passwords are hashed with Argon2id and are never returned by the
-              API.
+              Your password is never stored as text. It is scrambled in a way
+              that cannot be reversed, and it is never sent back to the browser.
             </li>
             <li>
-              Inviting members, changing roles and reviewing the audit trail
-              arrive with the workspace administration screens.
+              Inviting people, changing what they can do, and viewing the
+              history of who did what are not built yet.
             </li>
           </ul>
         </PanelBody>

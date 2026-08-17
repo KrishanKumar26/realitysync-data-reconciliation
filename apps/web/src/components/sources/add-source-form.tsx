@@ -233,7 +233,7 @@ export function AddSourceForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="Username"
-          hint="A read-only role is strongly recommended."
+          hint="Use an account that can only read. RealitySync never writes to your database."
           error={fieldErrors.username}
         >
           {({ inputId, describedBy }) => (
@@ -251,7 +251,7 @@ export function AddSourceForm({
 
         <Field
           label="Password"
-          hint="Encrypted at rest. Never shown again."
+          hint="Stored scrambled. You will not be able to read it back here."
           error={fieldErrors.password}
         >
           {({ inputId, describedBy }) => (
