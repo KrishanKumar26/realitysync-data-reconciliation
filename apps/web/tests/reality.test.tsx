@@ -97,7 +97,7 @@ const EVIDENCE = [
  */
 async function openEntity(): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
-  await screen.findByLabelText("Entity");
+  await screen.findByLabelText("Item");
   return user;
 }
 
@@ -178,7 +178,7 @@ describe("Reality page", () => {
     expect(row).not.toBeNull();
 
     expect(
-      within(row!).getByText(/confidence unavailable/),
+      within(row!).getByText(/confidence unavailable/i),
     ).toBeInTheDocument();
     expect(within(row!).queryByText(/0%/)).not.toBeInTheDocument();
     expect(within(row!).queryByText(/null/)).not.toBeInTheDocument();
@@ -213,7 +213,7 @@ describe("Reality page", () => {
     await openEntity();
 
     const row = (await screen.findByText("location")).closest("li");
-    expect(within(row!).getByText("No value selected")).toBeInTheDocument();
+    expect(within(row!).getByText(/No value selected/)).toBeInTheDocument();
     expect(within(row!).getByText(/contested/)).toBeInTheDocument();
     expect(within(row!).queryByText("null")).not.toBeInTheDocument();
   });
@@ -327,7 +327,7 @@ describe("Reality page", () => {
     await screen.findByText("quantity");
     const attributes = screen
       .getAllByRole("listitem")
-      .map((item) => item.querySelector("span")?.textContent)
+      .map((item) => item.querySelector("h3")?.textContent)
       .filter((text) => text === "quantity" || text === "location");
 
     expect(attributes).toEqual(["quantity", "location"]);

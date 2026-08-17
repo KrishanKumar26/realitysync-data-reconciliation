@@ -1,9 +1,19 @@
 "use client";
 
+import { Boxes, Clock, History } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { DataView } from "@/components/ui/data-view";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Panel,
+  PanelBody,
+  PanelFooter,
+  PanelHeader,
+} from "@/components/ui/panel";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ApiError } from "@/lib/api";
@@ -41,12 +51,17 @@ const AXES: { value: TimeAxis; label: string; question: string }[] = [
  *
  * The screen that makes the two time axes visible. "What was true at T" and
  * "what did we know at T" are different questions with different answers, and
- * the difference is precisely the late-arriving observations — which are
- * flagged rather than left for the reader to infer.
+ * the difference is precisely the late-arriving records — which are flagged
+ * rather than left for the reader to infer.
  *
- * Every event is a real observation. Nothing here depends on the missing
- * confidence specification: this reports what sources said and when, and
- * asserts nothing about which is right.
+ * Rendered as a rail with markers rather than a list of rows. The point of the
+ * screen is sequence, and a vertical line is the cheapest way to say "these
+ * things happened in this order" without the reader having to compare
+ * timestamps.
+ *
+ * Every event is a real record. Nothing here depends on the missing confidence
+ * specification: this reports what sources said and when, and asserts nothing
+ * about which is right.
  */
 export default function TimelinePage() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -83,17 +98,15 @@ export default function TimelinePage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">Timeline</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Observations, events and state changes over time.
-        </p>
-      </header>
+      <PageHeader
+        title="Timeline"
+        description="Records, events and changes over time."
+      />
 
       {state.kind === "loading" ? (
-        <div className="space-y-2.5" data-testid="timeline-loading">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-40 w-full" />
+        <div className="space-y-4" data-testid="timeline-loading">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-48 w-full" />
         </div>
       ) : null}
 
@@ -117,6 +130,7 @@ export default function TimelinePage() {
         <Panel>
           <PanelBody className="p-0">
             <EmptyState
+              icon={<Boxes />}
               title="No items yet"
               description="A timeline is the history of one thing. Create an item and link a synced table to it, and every record already received will appear here."
             />
@@ -126,62 +140,78 @@ export default function TimelinePage() {
 
       {state.kind === "ready" ? (
         <>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-56">
-              <label
-                htmlFor="entity"
-                className="block text-xs uppercase tracking-wide text-muted-foreground"
-              >
-                Entity
-              </label>
-              <select
+          <Panel>
+            <PanelBody className="flex flex-wrap items-end gap-4">
+              <Select
                 id="entity"
+                label="Item"
+                containerClassName="w-full sm:w-72"
                 value={entityId ?? ""}
                 onChange={(event) => setEntityId(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
               >
                 {state.entities.map((entity) => (
                   <option key={entity.id} value={entity.id}>
-                    {entity.natural_key} ({entity.observation_count})
+                    {entity.natural_key} ({entity.observation_count} records)
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
 
-            <div className="flex gap-1.5" role="group" aria-label="View by">
-              {AXES.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={axis === option.value}
-                  title={option.question}
-                  onClick={() => setAxis(option.value)}
-                  className={cn(
-                    "rounded-md border px-3 py-2 text-sm transition-colors duration-150",
-                    axis === option.value
-                      ? "border-border-strong bg-muted text-foreground"
-                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
+              <div>
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  View by
+                </p>
+                <div
+                  className="inline-flex gap-1 rounded-lg border border-border bg-muted/40 p-1"
+                  role="group"
+                  aria-label="View by"
                 >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                  {AXES.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={axis === option.value}
+                      title={option.question}
+                      onClick={() => setAxis(option.value)}
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-sm transition-colors duration-150",
+                        axis === option.value
+                          ? "bg-panel font-medium text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <p className="text-sm text-muted-foreground">
-            {AXES.find((a) => a.value === axis)?.question}
-          </p>
+              <p className="w-full text-sm text-muted-foreground sm:w-auto sm:flex-1">
+                {AXES.find((a) => a.value === axis)?.question}
+              </p>
+            </PanelBody>
+          </Panel>
 
           <Panel>
             <PanelHeader
+              icon={<History />}
               title={`${state.timeline.event_count} ${
                 state.timeline.event_count === 1 ? "record" : "records"
               }`}
               description={
                 state.timeline.late_arrival_count > 0
                   ? `${state.timeline.late_arrival_count} arrived after the fact was true — the two views differ for those.`
-                  : "Every observation arrived as its fact became true, so both views agree."
+                  : "Every record arrived as its fact became true, so both views agree."
+              }
+              action={
+                state.timeline.late_arrival_count > 0 ? (
+                  <Badge tone="degraded" dot>
+                    {state.timeline.late_arrival_count} late
+                  </Badge>
+                ) : (
+                  <Badge tone="healthy" dot>
+                    In step
+                  </Badge>
+                )
               }
             />
             <PanelBody
@@ -189,60 +219,84 @@ export default function TimelinePage() {
             >
               {state.timeline.events.length === 0 ? (
                 <EmptyState
+                  icon={<History />}
                   title="Nothing recorded yet"
                   description="No data is linked to this item yet."
                   className="py-10"
                 />
               ) : (
-                <ol className="divide-y divide-border">
+                <ol className="relative px-5 py-5">
+                  {/* The rail. Decorative — order is already conveyed by the
+                      document order of the list. */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute bottom-6 left-[1.9375rem] top-7 w-px bg-border"
+                  />
                   {state.timeline.events.map((event) => (
-                    <li key={event.observation_id} className="px-5 py-3.5">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {event.source_name}
-                        </span>
-                        {event.arrived_late ? (
-                          <span className="rounded-full border border-border px-2.5 py-0.5 text-xs text-status-degraded">
-                            arrived {formatLag(event.lag_seconds)} late
+                    <li
+                      key={event.observation_id}
+                      className="relative flex gap-4 pb-6 last:pb-0"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 bg-panel",
+                          event.arrived_late
+                            ? "border-status-degraded text-status-degraded"
+                            : "border-border text-muted-foreground",
+                        )}
+                      >
+                        <Clock className="h-3 w-3" />
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                          <span className="text-sm font-medium text-foreground">
+                            {event.source_name}
                           </span>
-                        ) : null}
+                          {event.arrived_late ? (
+                            <Badge tone="degraded" size="sm">
+                              arrived {formatLag(event.lag_seconds)} late
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <dl className="tabular mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                          <div className="flex gap-1.5">
+                            <dt>true at</dt>
+                            <dd className="text-foreground">
+                              {new Date(event.event_time).toLocaleString()}
+                            </dd>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <dt>learned at</dt>
+                            <dd className="text-foreground">
+                              {new Date(event.ingested_at).toLocaleString()}
+                            </dd>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <dt>from</dt>
+                            <dd>{event.event_time_semantics}</dd>
+                          </div>
+                        </dl>
+
+                        <DataView value={event.values} className="mt-2.5" />
                       </div>
-
-                      <dl className="tabular mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-                        <div className="flex gap-1.5">
-                          <dt>true at</dt>
-                          <dd className="text-foreground">
-                            {new Date(event.event_time).toLocaleString()}
-                          </dd>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <dt>learned at</dt>
-                          <dd className="text-foreground">
-                            {new Date(event.ingested_at).toLocaleString()}
-                          </dd>
-                        </div>
-                        <div className="flex gap-1.5">
-                          <dt>semantics</dt>
-                          <dd>{event.event_time_semantics}</dd>
-                        </div>
-                      </dl>
-
-                      <pre className="tabular mt-2 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                        {JSON.stringify(event.values, null, 2)}
-                      </pre>
                     </li>
                   ))}
                 </ol>
               )}
             </PanelBody>
-          </Panel>
 
-          {state.timeline.truncated ? (
-            <p className="text-xs text-muted-foreground">
-              Showing the most recent {state.timeline.event_count} observations.
-              More exist.
-            </p>
-          ) : null}
+            {state.timeline.truncated ? (
+              <PanelFooter>
+                <span>
+                  Showing the most recent {state.timeline.event_count} records.
+                  More exist.
+                </span>
+              </PanelFooter>
+            ) : null}
+          </Panel>
         </>
       ) : null}
     </div>

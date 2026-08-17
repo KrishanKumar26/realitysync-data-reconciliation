@@ -223,7 +223,7 @@ describe("Overview", () => {
     await renderWithSession(<OverviewPage />);
 
     expect(await screen.findByText("Confidence")).toBeInTheDocument();
-    expect(screen.getByText("Not available.")).toBeInTheDocument();
+    expect(screen.getByText(/Not available/)).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
     expect(screen.queryByText("0.0%")).not.toBeInTheDocument();
@@ -266,7 +266,7 @@ describe("Overview", () => {
 
     expect(await screen.findByText("71.0%")).toBeInTheDocument();
     expect(screen.getByText("42.5%")).toBeInTheDocument();
-    expect(screen.queryByText("Not available.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not available/)).not.toBeInTheDocument();
   });
 
   it("renders real source health counts", async () => {
@@ -274,9 +274,9 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    const panel = (await screen.findByText("Source health")).closest(
-      "section",
-    )!;
+    const panel = (
+      await screen.findByRole("heading", { name: "Sources" })
+    ).closest("section")!;
     expect(within(panel).getByText("Warehouse")).toBeInTheDocument();
     expect(
       within(panel).getByText("The database refused the connection."),
@@ -294,7 +294,7 @@ describe("Overview", () => {
     expect((await screen.findAllByText("Not yet tested")).length).toBe(2);
     expect(screen.getByText("Failing")).toBeInTheDocument();
     expect(
-      screen.getByText("Credentials stored, connection unproven."),
+      screen.getByText(/credentials stored, connection unproven/i),
     ).toBeInTheDocument();
     // And it is not lumped in with the failing count.
     expect(screen.getByText("Connection failed")).toBeInTheDocument();

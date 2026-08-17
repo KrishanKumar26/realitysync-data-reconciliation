@@ -99,7 +99,9 @@ describe("session lifecycle", () => {
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Sign in" }),
+      ).toBeInTheDocument();
     });
   });
 

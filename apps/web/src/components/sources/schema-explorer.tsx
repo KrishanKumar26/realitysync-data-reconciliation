@@ -1,7 +1,9 @@
 "use client";
 
+import { KeyRound, Search, Table2 } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
@@ -59,9 +61,15 @@ export function SchemaExplorer({
   if (state.kind === "idle") {
     return (
       <EmptyState
+        icon={<Search />}
         title="Tables not loaded yet"
         description="RealitySync will read table and column names from the database's catalogue. No table data is read."
-        action={<Button onClick={() => void discover()}>Find tables</Button>}
+        action={
+          <Button onClick={() => void discover()}>
+            <Search aria-hidden="true" />
+            Find tables
+          </Button>
+        }
       />
     );
   }
@@ -110,6 +118,7 @@ export function SchemaExplorer({
   if (discovery.tables.length === 0) {
     return (
       <EmptyState
+        icon={<Table2 />}
         title="No readable tables found"
         description={
           discovery.inaccessible_schemas.length > 0
@@ -152,25 +161,40 @@ export function SchemaExplorer({
         {discovery.tables.map((table) => (
           <li key={table.qualified_name}>
             <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
-              <div className="min-w-0">
-                <p className="tabular truncate text-sm text-foreground">
-                  {table.qualified_name}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {table.columns.length} columns
-                  {table.approximate_row_count !== null
-                    ? ` · approx. ${table.approximate_row_count.toLocaleString()} rows`
-                    : ""}
-                  {table.primary_key_columns.length > 0
-                    ? ` · key: ${table.primary_key_columns.join(", ")}`
-                    : " · no primary key"}
-                </p>
+              <div className="flex min-w-0 items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground"
+                >
+                  <Table2 className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="tabular truncate text-sm font-medium text-foreground">
+                    {table.qualified_name}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge tone="outline" size="sm">
+                      {table.columns.length} columns
+                    </Badge>
+                    {table.approximate_row_count !== null ? (
+                      <Badge tone="neutral" size="sm">
+                        approx. {table.approximate_row_count.toLocaleString()}{" "}
+                        rows
+                      </Badge>
+                    ) : null}
+                    {table.primary_key_columns.length > 0 ? (
+                      <Badge tone="neutral" size="sm" icon={<KeyRound />}>
+                        {table.primary_key_columns.join(", ")}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
               </div>
 
               {table.configured ? (
-                <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
+                <Badge tone="healthy" dot>
                   Added
-                </span>
+                </Badge>
               ) : table.primary_key_columns.length === 0 ? (
                 <span
                   className="shrink-0 text-xs text-muted-foreground"

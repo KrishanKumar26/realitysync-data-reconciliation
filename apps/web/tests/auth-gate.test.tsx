@@ -59,7 +59,9 @@ describe("AuthGate", () => {
     renderGate();
 
     expect(screen.getByTestId("session-loading")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in" }),
+    ).not.toBeInTheDocument();
 
     resolveSession();
     await waitFor(() => {
@@ -99,7 +101,9 @@ describe("AuthGate", () => {
     await waitFor(() => {
       expect(screen.getByText("protected content")).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in" }),
+    ).not.toBeInTheDocument();
   });
 
   it("distinguishes an unreachable API from being signed out", async () => {
@@ -113,8 +117,12 @@ describe("AuthGate", () => {
     renderGate();
     await waitForSessionResolved();
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Cannot reach RealitySync");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Cannot reach RealitySync",
+    );
     expect(screen.getByText(/session has not ended/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in" }),
+    ).not.toBeInTheDocument();
   });
 });

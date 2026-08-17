@@ -7,7 +7,10 @@ import {
 import type { ReactElement } from "react";
 import { expect, vi } from "vitest";
 
-import { SessionProvider, useSession } from "@/components/auth/session-provider";
+import {
+  SessionProvider,
+  useSession,
+} from "@/components/auth/session-provider";
 import type {
   AuthenticatedSession,
   OrganizationMembership,
@@ -36,7 +39,9 @@ export interface RecordedCall {
   body: unknown;
 }
 
-export function stubApi(routes: Record<string, StubRoute | (() => StubRoute)>): {
+export function stubApi(
+  routes: Record<string, StubRoute | (() => StubRoute)>,
+): {
   calls: RecordedCall[];
 } {
   const calls: RecordedCall[] = [];
@@ -49,7 +54,11 @@ export function stubApi(routes: Record<string, StubRoute | (() => StubRoute)>): 
 
       const headers: Record<string, string> = {};
       const rawHeaders = init?.headers;
-      if (rawHeaders && typeof rawHeaders === "object" && !Array.isArray(rawHeaders)) {
+      if (
+        rawHeaders &&
+        typeof rawHeaders === "object" &&
+        !Array.isArray(rawHeaders)
+      ) {
         for (const [key, value] of Object.entries(rawHeaders)) {
           headers[key.toLowerCase()] = String(value);
         }
@@ -59,7 +68,8 @@ export function stubApi(routes: Record<string, StubRoute | (() => StubRoute)>): 
         url,
         method,
         headers,
-        body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+        body:
+          typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
       });
 
       // Match on the path only. Routes carry query strings (?status=open,
@@ -136,8 +146,14 @@ export function authenticatedSession(
   };
 }
 
-export const ANONYMOUS: SessionState = { authenticated: false, reason: "anonymous" };
-export const EXPIRED: SessionState = { authenticated: false, reason: "expired" };
+export const ANONYMOUS: SessionState = {
+  authenticated: false,
+  reason: "anonymous",
+};
+export const EXPIRED: SessionState = {
+  authenticated: false,
+  reason: "expired",
+};
 
 /**
  * Reports the provider's status into the DOM.
@@ -165,7 +181,9 @@ export async function renderWithSession(ui: ReactElement) {
   );
 
   await waitFor(() => {
-    expect(screen.getByTestId("session-status")).not.toHaveTextContent("loading");
+    expect(screen.getByTestId("session-status")).not.toHaveTextContent(
+      "loading",
+    );
   });
   return result;
 }

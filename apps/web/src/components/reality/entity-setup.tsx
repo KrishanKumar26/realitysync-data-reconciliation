@@ -1,9 +1,12 @@
 "use client";
 
+import { Link2, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
 import {
   createEntity,
@@ -97,6 +100,7 @@ function CreateEntityForm({
   if (!open) {
     return (
       <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Plus aria-hidden="true" />
         New item
       </Button>
     );
@@ -255,6 +259,7 @@ function MapRowForm({
         </div>
         {!open ? (
           <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+            <Link2 aria-hidden="true" />
             Link a table row
           </Button>
         ) : null}
@@ -263,56 +268,41 @@ function MapRowForm({
       {open ? (
         <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-3">
-            <label className="block">
-              <span className="block text-xs uppercase tracking-wide text-muted-foreground">
-                Source
-              </span>
-              <select
-                value={sourceId}
-                onChange={(event) => setSourceId(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground"
-              >
-                {sources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Source"
+              value={sourceId}
+              onChange={(event) => setSourceId(event.target.value)}
+            >
+              {sources.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.name}
+                </option>
+              ))}
+            </Select>
 
-            <label className="block">
-              <span className="block text-xs uppercase tracking-wide text-muted-foreground">
-                Table
-              </span>
-              <select
-                value={streamId}
-                onChange={(event) => setStreamId(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground"
-              >
-                {streams.map((stream) => (
-                  <option key={stream.id} value={stream.id}>
-                    {stream.qualified_name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Table"
+              value={streamId}
+              onChange={(event) => setStreamId(event.target.value)}
+            >
+              {streams.map((stream) => (
+                <option key={stream.id} value={stream.id}>
+                  {stream.qualified_name}
+                </option>
+              ))}
+            </Select>
 
-            <label className="block">
-              <span className="block text-xs uppercase tracking-wide text-muted-foreground">
-                Row
-              </span>
-              <select
-                value={externalId}
-                onChange={(event) => setExternalId(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground"
-              >
-                {externalIds.map((id) => (
-                  <option key={id} value={id}>
-                    {id}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Row"
+              value={externalId}
+              onChange={(event) => setExternalId(event.target.value)}
+            >
+              {externalIds.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </Select>
           </div>
 
           {externalIds.length === 0 && sourceId ? (
@@ -349,13 +339,12 @@ function MapRowForm({
       ) : null}
 
       {mappings.length > 0 ? (
-        <ul className="mt-3 space-y-1">
+        <ul className="mt-3 flex flex-wrap gap-1.5">
           {mappings.map((mapping) => (
-            <li
-              key={mapping.id}
-              className="tabular text-xs text-muted-foreground"
-            >
-              {mapping.external_id}
+            <li key={mapping.id}>
+              <Badge tone="outline" size="sm" icon={<Link2 />}>
+                {mapping.external_id}
+              </Badge>
             </li>
           ))}
         </ul>

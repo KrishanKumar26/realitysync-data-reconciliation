@@ -21,7 +21,10 @@ function shellRoutes(healthOk = true) {
     "/api/auth/session": { body: authenticatedSession() },
     "/health": healthOk
       ? HEALTH_OK
-      : { status: 503, body: { error: { code: "SERVICE_UNAVAILABLE", message: "down" } } },
+      : {
+          status: 503,
+          body: { error: { code: "SERVICE_UNAVAILABLE", message: "down" } },
+        },
   };
 }
 
@@ -53,10 +56,9 @@ describe("AppShell", () => {
 
     const nav = screen.getByRole("navigation", { name: "Workspace" });
     for (const item of NAV_ITEMS) {
-      expect(within(nav).getByRole("link", { name: item.label })).toHaveAttribute(
-        "href",
-        item.href,
-      );
+      expect(
+        within(nav).getByRole("link", { name: item.label }),
+      ).toHaveAttribute("href", item.href);
     }
   });
 
@@ -117,6 +119,8 @@ describe("AppShell", () => {
       </AppShell>,
     );
 
-    expect(screen.getByRole("link", { name: "Skip to content" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Skip to content" }),
+    ).toBeInTheDocument();
   });
 });

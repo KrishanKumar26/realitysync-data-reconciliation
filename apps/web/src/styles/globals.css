@@ -16,8 +16,8 @@
   /* Typeface stacks. System stacks keep first paint fast and avoid shipping
      webfonts before there is a reason to. */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, "Cascadia Mono",
     "Roboto Mono", monospace;
@@ -53,6 +53,8 @@
   --border-strong: oklch(0.85 0.008 265);
   --ring: oklch(0.65 0.11 205);
   --overlay: oklch(0.21 0.01 265 / 0.4);
+  --shadow-surface: 0 1px 2px oklch(0.21 0.01 265 / 0.05);
+  --shadow-raised: 0 4px 16px -4px oklch(0.21 0.01 265 / 0.1);
 }
 
 /* --- Semantic surface tokens: dark -------------------------------------- */
@@ -68,6 +70,8 @@
     --border-strong: oklch(0.36 0.014 265);
     --ring: oklch(0.72 0.12 205);
     --overlay: oklch(0.1 0.006 265 / 0.6);
+    --shadow-surface: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-raised: 0 4px 16px -4px oklch(0 0 0 / 0.45);
   }
 }
 
@@ -82,6 +86,8 @@
   --border-strong: oklch(0.36 0.014 265);
   --ring: oklch(0.72 0.12 205);
   --overlay: oklch(0.1 0.006 265 / 0.6);
+  --shadow-surface: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-raised: 0 4px 16px -4px oklch(0 0 0 / 0.45);
 }
 
 /* Expose the semantic tokens as Tailwind colour utilities. */
@@ -108,6 +114,12 @@
     scroll-behavior: smooth;
   }
 
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -124,13 +136,23 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Long identifiers, hostnames and JSON keys must not force a page-wide
+     horizontal scrollbar on a phone. */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+  }
+
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 
   ::selection {
-    background-color: color-mix(in oklch, var(--color-accent-cyan) 30%, transparent);
+    background-color: color-mix(
+      in oklch,
+      var(--color-accent-cyan) 30%,
+      transparent
+    );
   }
 }
 
@@ -151,6 +173,7 @@
     background-color: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius-panel);
+    box-shadow: var(--shadow-surface);
   }
 
   /* Entrance for panels, menus and the auth screen. Short and slight — the

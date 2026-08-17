@@ -1,3 +1,4 @@
+import { AlertTriangle, Inbox } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -9,6 +10,10 @@ import { cn } from "@/lib/utils";
  * designed error state. "Nothing here" and "something broke" are different
  * situations that need different words and different actions — a spinner that
  * never resolves is not an acceptable answer to either.
+ *
+ * Both now carry an icon by default. An empty panel with only grey text reads
+ * as a page that failed to finish loading; a bordered glyph reads as a place
+ * that is deliberately empty, which is what it is.
  */
 
 export function EmptyState({
@@ -31,14 +36,12 @@ export function EmptyState({
         className,
       )}
     >
-      {icon ? (
-        <div
-          className="mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground"
-          aria-hidden="true"
-        >
-          {icon}
-        </div>
-      ) : null}
+      <div
+        className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground [&>svg]:h-5 [&>svg]:w-5"
+        aria-hidden="true"
+      >
+        {icon ?? <Inbox />}
+      </div>
       <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       {description ? (
         <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
@@ -71,6 +74,12 @@ export function ErrorState({
         className,
       )}
     >
+      <div
+        className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-status-down/25 bg-status-down/10 text-status-down [&>svg]:h-5 [&>svg]:w-5"
+        aria-hidden="true"
+      >
+        <AlertTriangle />
+      </div>
       <h3 className="text-sm font-semibold text-status-down">{title}</h3>
       {description ? (
         <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
@@ -78,7 +87,7 @@ export function ErrorState({
         </p>
       ) : null}
       {requestId ? (
-        <p className="tabular mt-3 text-xs text-muted-foreground">
+        <p className="tabular mt-3 rounded-md border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground">
           Request ID: {requestId}
         </p>
       ) : null}

@@ -1,5 +1,16 @@
 "use client";
 
+import {
+  CheckCircle2,
+  Inbox,
+  Link2,
+  Play,
+  Plug,
+  RefreshCw,
+  Search,
+  Table2,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -9,10 +20,28 @@ import {
   SourceStatusBadge,
   SyncStatusBadge,
 } from "@/components/sources/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { DataView } from "@/components/ui/data-view";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  Panel,
+  PanelBody,
+  PanelFooter,
+  PanelHeader,
+} from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
+import {
+  Table,
+  TableContainer,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
 import {
   deleteSource,
@@ -43,11 +72,13 @@ type State =
   | { kind: "error"; message: string };
 
 /**
- * Source detail: connection, schema, streams, sync history, observations.
+ * Source detail: connection, tables, sync history, records.
  *
- * The whole Phase 3 vertical slice is visible on this one page, in the order
- * it happens — connect, discover, configure, sync, observe.
+ * The page is ordered the way the work happens — connect, find tables, add
+ * them, sync, look at what arrived — so someone setting up a source can work
+ * straight down the screen without being told the sequence.
  */
+
 /** "30s", "5m", "2h" — the shortest honest rendering of an interval. */
 function formatInterval(seconds: number): string {
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
@@ -153,9 +184,9 @@ export default function SourceDetailPage() {
   if (state.kind === "loading") {
     return (
       <div className="space-y-4" data-testid="source-loading">
-        <Skeleton className="h-8 w-56" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-9 w-56" />
+        <Skeleton className="h-44 w-full" />
+        <Skeleton className="h-44 w-full" />
       </div>
     );
   }
@@ -179,45 +210,79 @@ export default function SourceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-3">
-        <Link
-          href="/sources"
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          ← Sources
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold tracking-tight">
-              {source.name}
-            </h1>
-            <p className="tabular mt-1.5 truncate text-sm text-muted-foreground">
-              {source.connection.host}:{source.connection.port}/
-              {source.connection.database}
-            </p>
-          </div>
-          <SourceStatusBadge status={source.status} />
-        </div>
-      </header>
-
-      {/* --- Connection --- */}
-      <Panel>
-        <PanelHeader
-          title="Connection"
-          description="Credentials are encrypted at rest and are never returned by the API."
-          action={
+      <PageHeader
+        back={{ href: "/sources", label: "Sources" }}
+        title={source.name}
+        description={`${source.connection.host}:${source.connection.port}/${source.connection.database}`}
+        actions={
+          <>
+            <SourceStatusBadge status={source.status} />
             <Button
               variant="secondary"
               size="sm"
               onClick={() => void handleTest()}
               disabled={testing}
             >
+              <Plug aria-hidden="true" />
               {testing ? "Testing…" : "Test connection"}
             </Button>
-          }
+            <Button
+              size="sm"
+              onClick={() => void handleSync()}
+              disabled={syncing || enabledStreams.length === 0}
+            >
+              {syncing ? (
+                <RefreshCw className="animate-spin" aria-hidden="true" />
+              ) : (
+                <Play aria-hidden="true" />
+              )}
+              {syncing ? "Syncing…" : "Sync now"}
+            </Button>
+          </>
+        }
+      />
+
+      {/* Sync feedback rides at the top, next to the button that caused it,
+          rather than inside a panel further down the page. */}
+      {syncError ? (
+        <p
+          role="alert"
+          className="rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3 text-sm text-status-down"
+        >
+          {syncError}
+        </p>
+      ) : null}
+
+      {lastRun ? (
+        <div
+          role="status"
+          className="animate-rise flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-status-healthy/25 bg-status-healthy/5 px-4 py-3 text-sm"
+        >
+          <CheckCircle2
+            className="h-4 w-4 shrink-0 text-status-healthy"
+            aria-hidden="true"
+          />
+          <span className="text-foreground">
+            <span className="tabular font-medium">{lastRun.rows_created}</span>{" "}
+            new {lastRun.rows_created === 1 ? "record" : "records"} from{" "}
+            <span className="tabular font-medium">{lastRun.rows_seen}</span>{" "}
+            {lastRun.rows_seen === 1 ? "row" : "rows"}
+            {lastRun.rows_skipped > 0
+              ? ` · ${lastRun.rows_skipped} already recorded`
+              : ""}
+          </span>
+        </div>
+      ) : null}
+
+      {/* --- Connection --- */}
+      <Panel>
+        <PanelHeader
+          icon={<Plug />}
+          title="Connection"
+          description="Credentials are encrypted at rest and are never returned by the API."
         />
         <PanelBody>
-          <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-3">
+          <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ["Host", `${source.connection.host}:${source.connection.port}`],
               ["Database", source.connection.database],
@@ -245,11 +310,16 @@ export default function SourceDetailPage() {
           {testResult ? (
             <div
               role="status"
-              className="mt-5 rounded-md border border-border bg-muted px-4 py-3"
+              className={
+                testResult.status === "connected"
+                  ? "animate-rise mt-5 rounded-md border border-status-healthy/25 bg-status-healthy/5 px-4 py-3"
+                  : "animate-rise mt-5 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3"
+              }
             >
               {testResult.status === "connected" ? (
                 <>
-                  <p className="text-sm font-medium text-status-healthy">
+                  <p className="flex items-center gap-2 text-sm font-medium text-status-healthy">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                     Connected over {testResult.tls_version ?? "TLS"}
                   </p>
                   <p className="tabular mt-1.5 text-xs text-muted-foreground">
@@ -281,65 +351,102 @@ export default function SourceDetailPage() {
           ) : null}
 
           {!testResult && source.last_error ? (
-            <p className="mt-4 text-sm text-status-down">{source.last_error}</p>
+            <p className="mt-4 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3 text-sm text-status-down">
+              {source.last_error}
+            </p>
           ) : null}
         </PanelBody>
       </Panel>
 
-      {/* --- Streams --- */}
+      {/* --- Tables in use --- */}
       <Panel>
         <PanelHeader
+          icon={<Table2 />}
           title="Tables"
-          description="Tables RealitySync reads from."
+          description="Tables RealitySync reads from, and how often."
+          action={
+            <Badge tone={enabledStreams.length > 0 ? "healthy" : "neutral"}>
+              {enabledStreams.length} of {streams.length} enabled
+            </Badge>
+          }
         />
         <PanelBody className={streams.length > 0 ? "p-0" : undefined}>
           {streams.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No tables added yet. Find tables below to choose one.
-            </p>
+            <EmptyState
+              icon={<Table2 />}
+              title="No tables added yet"
+              description="Find tables below and add the ones you want RealitySync to read."
+              className="py-10"
+            />
           ) : (
-            <ul className="divide-y divide-border">
-              {streams.map((stream) => (
-                <li
-                  key={stream.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-                >
-                  <div className="min-w-0">
-                    <p className="tabular truncate text-sm text-foreground">
-                      {stream.qualified_name}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      key: {stream.primary_key_columns.join(", ")} · time:{" "}
-                      {stream.event_time_column ?? "when read"} (
-                      {stream.event_time_semantics}) ·{" "}
-                      {stream.observation_count.toLocaleString()} records ·{" "}
-                      {/* The poll interval is honoured by the scheduler, so it
-                          has to be visible: an operator cannot otherwise tell
-                          how fresh this stream is meant to be. A disabled
-                          stream is not polled at all, and says so rather than
-                          showing an interval it does not follow. */}
-                      {stream.enabled
-                        ? `every ${formatInterval(stream.poll_interval_seconds)}`
-                        : "not scheduled"}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => void toggleStream(stream)}
-                  >
-                    {stream.enabled ? "Disable" : "Enable"}
-                  </Button>
-                </li>
-              ))}
-            </ul>
+            <TableContainer>
+              <Table>
+                <THead>
+                  <TH>Table</TH>
+                  <TH>Identified by</TH>
+                  <TH>Date column</TH>
+                  <TH align="right">Records</TH>
+                  <TH>Schedule</TH>
+                  <TH align="right" />
+                </THead>
+                <TBody>
+                  {streams.map((stream) => (
+                    <TR key={stream.id}>
+                      <TD numeric className="font-medium">
+                        {stream.qualified_name}
+                      </TD>
+                      <TD numeric className="text-muted-foreground">
+                        {stream.primary_key_columns.join(", ")}
+                      </TD>
+                      <TD numeric className="text-muted-foreground">
+                        {stream.event_time_column ?? "when read"}
+                        <span className="ml-1 text-xs">
+                          ({stream.event_time_semantics})
+                        </span>
+                      </TD>
+                      <TD numeric align="right">
+                        {stream.observation_count.toLocaleString()}
+                      </TD>
+                      <TD>
+                        {/* A disabled table is not polled at all, and says so
+                            rather than showing an interval it does not follow. */}
+                        {stream.enabled ? (
+                          <Badge tone="healthy" size="sm" dot>
+                            every {formatInterval(stream.poll_interval_seconds)}
+                          </Badge>
+                        ) : (
+                          <Badge tone="neutral" size="sm">
+                            not scheduled
+                          </Badge>
+                        )}
+                      </TD>
+                      <TD align="right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void toggleStream(stream)}
+                        >
+                          {stream.enabled ? "Disable" : "Enable"}
+                        </Button>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </TableContainer>
           )}
         </PanelBody>
+        {enabledStreams.length === 0 && streams.length > 0 ? (
+          <PanelFooter>
+            <span>Enable at least one table before syncing.</span>
+          </PanelFooter>
+        ) : null}
       </Panel>
 
-      {/* --- Schema --- */}
+      {/* --- Schema discovery --- */}
       <Panel>
         <PanelHeader
+          icon={<Search />}
           title="Available tables"
           description="Read from the database's own catalogue. No table data is read."
         />
@@ -351,95 +458,101 @@ export default function SourceDetailPage() {
         </PanelBody>
       </Panel>
 
-      {/* --- Sync --- */}
+      {/* --- Sync history --- */}
       <Panel>
         <PanelHeader
-          title="Sync"
-          description="Reads the tables above and adds new records."
-          action={
-            <Button
-              size="sm"
-              onClick={() => void handleSync()}
-              disabled={syncing || enabledStreams.length === 0}
-            >
-              {syncing ? "Syncing…" : "Sync now"}
-            </Button>
-          }
+          icon={<RefreshCw />}
+          title="Sync history"
+          description="Each run reads the enabled tables and adds any rows it has not seen before."
         />
         <PanelBody className={runs.length > 0 ? "p-0" : undefined}>
-          {enabledStreams.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Add and enable at least one table before syncing.
-            </p>
-          ) : null}
-
-          {syncError ? (
-            <p role="alert" className="px-5 py-3 text-sm text-status-down">
-              {syncError}
-            </p>
-          ) : null}
-
-          {lastRun ? (
-            <div
-              role="status"
-              className="mx-5 mt-4 rounded-md border border-border bg-muted px-4 py-3"
-            >
-              <p className="text-sm text-foreground">
-                {lastRun.rows_created} new{" "}
-                {lastRun.rows_created === 1 ? "record" : "records"} from{" "}
-                {lastRun.rows_seen} {lastRun.rows_seen === 1 ? "row" : "rows"}
-                {lastRun.rows_skipped > 0
-                  ? ` · ${lastRun.rows_skipped} already recorded`
-                  : ""}
-              </p>
-            </div>
-          ) : null}
-
-          {runs.length > 0 ? (
-            <ul className="divide-y divide-border">
-              {runs.map((run) => (
-                <li
-                  key={run.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-                >
-                  <div className="min-w-0">
-                    <SyncStatusBadge status={run.status} />
-                    <p className="tabular mt-1 text-xs text-muted-foreground">
-                      {new Date(run.started_at).toLocaleString()}
-                      {run.duration_ms !== null
-                        ? ` · ${run.duration_ms}ms`
-                        : ""}
-                    </p>
-                    {run.error_message ? (
-                      <p className="mt-1 text-xs text-status-down">
-                        {run.error_message}
-                      </p>
-                    ) : null}
-                  </div>
-                  <p className="tabular shrink-0 text-xs text-muted-foreground">
-                    {run.rows_seen} seen · {run.rows_created} new ·{" "}
-                    {run.rows_skipped} skipped
-                  </p>
-                </li>
-              ))}
-            </ul>
+          {runs.length === 0 ? (
+            <EmptyState
+              icon={<RefreshCw />}
+              title="No syncs have run yet"
+              description={
+                enabledStreams.length === 0
+                  ? "Add and enable at least one table, then run a sync."
+                  : "Press Sync now to read the enabled tables."
+              }
+              className="py-10"
+            />
           ) : (
-            <p className="px-5 pb-4 pt-2 text-sm text-muted-foreground">
-              No syncs have run yet.
-            </p>
+            <TableContainer>
+              <Table>
+                <THead>
+                  <TH>Status</TH>
+                  <TH>Started</TH>
+                  <TH align="right">Duration</TH>
+                  <TH align="right">Rows seen</TH>
+                  <TH align="right">New</TH>
+                  <TH align="right">Skipped</TH>
+                </THead>
+                <TBody>
+                  {runs.map((run) => (
+                    <TR key={run.id}>
+                      <TD>
+                        <SyncStatusBadge status={run.status} />
+                        {run.error_message ? (
+                          <p className="mt-1 max-w-xs text-xs text-status-down">
+                            {run.error_message}
+                          </p>
+                        ) : null}
+                      </TD>
+                      <TD numeric className="text-muted-foreground">
+                        {new Date(run.started_at).toLocaleString()}
+                      </TD>
+                      <TD
+                        numeric
+                        align="right"
+                        className="text-muted-foreground"
+                      >
+                        {run.duration_ms !== null
+                          ? `${run.duration_ms}ms`
+                          : "—"}
+                      </TD>
+                      <TD numeric align="right">
+                        {run.rows_seen}
+                      </TD>
+                      <TD numeric align="right">
+                        {run.rows_created}
+                      </TD>
+                      <TD
+                        numeric
+                        align="right"
+                        className="text-muted-foreground"
+                      >
+                        {run.rows_skipped}
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </TableContainer>
           )}
         </PanelBody>
       </Panel>
 
-      {/* --- Observations --- */}
+      {/* --- Records --- */}
       <Panel>
         <PanelHeader
+          icon={<Inbox />}
           title="Records"
           description="What this source stated, most recently received first. These are never edited."
+          action={
+            observations.length > 0 ? (
+              <Badge tone="neutral">
+                {observations.length > 20
+                  ? `20 of ${observations.length}`
+                  : `${observations.length}`}
+              </Badge>
+            ) : undefined
+          }
         />
         <PanelBody className={observations.length > 0 ? "p-0" : undefined}>
           {observations.length === 0 ? (
             <EmptyState
+              icon={<Inbox />}
               title="No records yet"
               description="Run a sync to read rows from the source. Nothing is shown here until real data has been read."
               className="py-10"
@@ -447,20 +560,23 @@ export default function SourceDetailPage() {
           ) : (
             <ul className="divide-y divide-border">
               {observations.slice(0, 20).map((observation) => (
-                <li key={observation.id} className="px-5 py-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="tabular text-sm text-foreground">
+                <li key={observation.id} className="px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                    <span className="tabular inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <Link2
+                        className="h-3.5 w-3.5 text-muted-foreground"
+                        aria-hidden="true"
+                      />
                       {observation.external_id}
-                    </p>
-                    <p className="tabular text-xs text-muted-foreground">
-                      event {new Date(observation.event_time).toLocaleString()}{" "}
-                      · ingested{" "}
+                    </span>
+                    <span className="tabular text-xs text-muted-foreground">
+                      true at{" "}
+                      {new Date(observation.event_time).toLocaleString()} ·
+                      received{" "}
                       {new Date(observation.ingested_at).toLocaleString()}
-                    </p>
+                    </span>
                   </div>
-                  <pre className="tabular mt-2 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                    {JSON.stringify(observation.payload, null, 2)}
-                  </pre>
+                  <DataView value={observation.payload} className="mt-2.5" />
                 </li>
               ))}
             </ul>
@@ -469,18 +585,18 @@ export default function SourceDetailPage() {
       </Panel>
 
       {/* --- Danger zone --- */}
-      <Panel>
+      <Panel className="border-status-down/25">
         <PanelHeader
-          title="Remove source"
-          description="Deletes the source, its credentials, tables and records. This cannot be undone."
+          icon={<Trash2 />}
+          title="Remove this source"
+          description="Deletes the source, its stored credentials, its tables and every record read from it. This cannot be undone."
           action={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleDelete()}
-            >
-              Delete source
-            </Button>
+            <ConfirmAction
+              label="Delete source"
+              confirmLabel="Yes, delete permanently"
+              pendingLabel="Deleting…"
+              onConfirm={handleDelete}
+            />
           }
         />
       </Panel>

@@ -1,11 +1,16 @@
 "use client";
 
+import { AlertTriangle, Boxes, Calculator, Target } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { EntitySetup } from "@/components/reality/entity-setup";
 import { EvidenceTrail } from "@/components/reality/evidence-trail";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataView } from "@/components/ui/data-view";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ApiError } from "@/lib/api";
@@ -25,17 +30,26 @@ type State =
   | { kind: "error"; message: string };
 
 /**
- * Reality.
+ * Current State.
  *
- * Shows what RealitySync believes about an entity, and — when it cannot
- * believe anything — why.
+ * Shows what RealitySync believes about an item, and — when it cannot believe
+ * anything — why.
  *
- * While the approved confidence specification is unavailable the engine
- * produces no reality states, so this page will usually show the blocked
- * result from a recalculation rather than a list of values. That is the honest
- * rendering: an empty list with no explanation would read as "nothing to say",
- * when in fact there is plenty to say and no sanctioned way to score it.
+ * While the approved confidence specification is unavailable, values are still
+ * established and recorded but carry no score. That is stated on each value
+ * rather than hidden: a blank where a percentage belongs would read as "we
+ * forgot", when in fact nobody has defined how to measure.
  */
+
+/** How a status reads, and how confident the reading is. */
+const STATUS_TONE: Record<string, BadgeTone> = {
+  confirmed: "healthy",
+  contested: "down",
+  stale: "degraded",
+  provisional: "neutral",
+  unknown: "neutral",
+};
+
 export default function RealityPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [entityId, setEntityId] = useState<string | null>(null);
@@ -90,17 +104,15 @@ export default function RealityPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">Current State</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Items, their current values and the evidence behind them.
-        </p>
-      </header>
+      <PageHeader
+        title="Current State"
+        description="Items, their current values and the evidence behind them."
+      />
 
       {state.kind === "loading" ? (
-        <div className="space-y-3" data-testid="reality-loading">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-40 w-full" />
+        <div className="space-y-4" data-testid="reality-loading">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-48 w-full" />
         </div>
       ) : null}
 
@@ -124,6 +136,7 @@ export default function RealityPage() {
         <Panel>
           <PanelBody className="p-0">
             <EmptyState
+              icon={<Boxes />}
               title="No items yet"
               description="An item is one real thing your sources describe — a product, a shipment, an account. Create one and link a synced table to it, and RealitySync can start comparing what each source says."
               action={
@@ -140,34 +153,35 @@ export default function RealityPage() {
 
       {state.kind === "ready" ? (
         <>
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-56">
-              <label
-                htmlFor="entity"
-                className="block text-xs uppercase tracking-wide text-muted-foreground"
-              >
-                Entity
-              </label>
-              <select
+          {/* Item picker and the recalculate action, together: choosing an item
+              and asking what is true about it is one decision, not two. */}
+          <Panel>
+            <PanelBody className="flex flex-wrap items-end gap-4">
+              <Select
                 id="entity"
+                label="Item"
+                containerClassName="w-full sm:w-72"
                 value={entityId ?? ""}
                 onChange={(event) => {
                   setEntityId(event.target.value);
                   setLastRun(null);
                 }}
-                className="mt-1.5 h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm text-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
               >
                 {state.entities.map((entity) => (
                   <option key={entity.id} value={entity.id}>
-                    {entity.natural_key} ({entity.observation_count})
+                    {entity.natural_key} ({entity.observation_count} records)
                   </option>
                 ))}
-              </select>
-            </div>
-            <Button onClick={() => void runRecalculation()} disabled={running}>
-              {running ? "Recalculating…" : "Recalculate"}
-            </Button>
-          </div>
+              </Select>
+              <Button
+                onClick={() => void runRecalculation()}
+                disabled={running}
+              >
+                <Calculator aria-hidden="true" />
+                {running ? "Recalculating…" : "Recalculate"}
+              </Button>
+            </PanelBody>
+          </Panel>
 
           <EntitySetup
             entity={state.entities.find((e) => e.id === entityId) ?? null}
@@ -180,38 +194,41 @@ export default function RealityPage() {
           />
 
           {lastRun?.blocked ? (
-            <Panel>
+            <Panel className="animate-rise border-status-degraded/25">
               <PanelHeader
+                icon={<AlertTriangle />}
                 title="Values recorded without confidence scores"
                 description="RealitySync ran and reported exactly what is missing."
+                action={<Badge tone="degraded">Partial</Badge>}
               />
               <PanelBody className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {[
+                    ["Fields read", lastRun.attributes_considered],
+                    ["Values written", lastRun.states_written],
+                    ["Without a score", lastRun.states_unscored],
+                    ["Conflicts found", lastRun.conflicts_written],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label as string}
+                      className="rounded-md border border-border p-3"
+                    >
+                      <p className="tabular text-xl font-semibold text-foreground">
+                        {value}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  RealitySync read{" "}
-                  <span className="tabular text-foreground">
-                    {lastRun.attributes_considered}
-                  </span>{" "}
-                  {lastRun.attributes_considered === 1 ? "field" : "fields"} and
-                  wrote{" "}
-                  <span className="tabular text-foreground">
-                    {lastRun.states_written}
-                  </span>{" "}
-                  {lastRun.states_written === 1 ? "state" : "states"}, of which{" "}
-                  <span className="tabular text-foreground">
-                    {lastRun.states_unscored}
-                  </span>{" "}
-                  {lastRun.states_unscored === 1 ? "carries" : "carry"} no
-                  confidence score, because the approved confidence
-                  specification is unavailable. Everything that follows from the
-                  observations alone — the values, the evidence, the
-                  disagreements — is recorded.{" "}
-                  <span className="tabular text-foreground">
-                    {lastRun.conflicts_written}
-                  </span>{" "}
-                  {lastRun.conflicts_written === 1
-                    ? "conflict was"
-                    : "conflicts were"}{" "}
-                  recorded, which needs no formula.
+                  Everything that follows from the records alone — the values,
+                  the evidence, the disagreements — is recorded. Only the
+                  confidence score is absent, because the approved specification
+                  for calculating it is unavailable. Conflicts needed no
+                  formula, so they were found and recorded normally.
                 </p>
 
                 {lastRun.blocked_on.length > 0 ? (
@@ -221,8 +238,8 @@ export default function RealityPage() {
                 ) : null}
 
                 {lastRun.missing_specifications.length > 0 ? (
-                  <details className="rounded-md border border-border bg-muted px-4 py-3">
-                    <summary className="cursor-pointer text-sm text-foreground">
+                  <details className="rounded-md border border-border bg-muted/40 px-4 py-3">
+                    <summary className="cursor-pointer text-sm font-medium text-foreground">
                       {lastRun.missing_specifications.length} specifications
                       required
                     </summary>
@@ -247,21 +264,34 @@ export default function RealityPage() {
           ) : null}
 
           {lastRun && !lastRun.blocked ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              Wrote {lastRun.states_written} reality{" "}
-              {lastRun.states_written === 1 ? "state" : "states"} and{" "}
+            <p
+              role="status"
+              className="animate-rise rounded-md border border-status-healthy/25 bg-status-healthy/5 px-4 py-3 text-sm text-foreground"
+            >
+              Wrote {lastRun.states_written}{" "}
+              {lastRun.states_written === 1 ? "value" : "values"} and{" "}
               {lastRun.conflicts_written} conflicts.
             </p>
           ) : null}
 
           <Panel>
             <PanelHeader
+              icon={<Target />}
               title="Current values"
               description="One per field, with its evidence and the reason it was chosen."
+              action={
+                state.states.length > 0 ? (
+                  <Badge tone="neutral">
+                    {state.states.length}{" "}
+                    {state.states.length === 1 ? "field" : "fields"}
+                  </Badge>
+                ) : undefined
+              }
             />
             <PanelBody className={state.states.length > 0 ? "p-0" : undefined}>
               {state.states.length === 0 ? (
                 <EmptyState
+                  icon={<Target />}
                   title="No values yet"
                   description="Run a recalculation to see what can be established. While the confidence formula is unavailable, values are still recorded — with no score, and the reason stated."
                   className="py-10"
@@ -269,43 +299,74 @@ export default function RealityPage() {
               ) : (
                 <ul className="divide-y divide-border">
                   {state.states.map((realityState) => (
-                    <li key={realityState.id} className="px-5 py-4">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="tabular text-sm text-foreground">
+                    <li key={realityState.id} className="px-5 py-5">
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                        <h3 className="tabular text-sm font-semibold text-foreground">
                           {realityState.attribute}
-                        </span>
-                        <span className="tabular text-sm text-foreground">
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            tone={STATUS_TONE[realityState.status] ?? "neutral"}
+                            dot
+                          >
+                            {realityState.status}
+                          </Badge>
                           {/* Never "0%" and never "null%". An unavailable score
                               is stated as unavailable — rendering a number here
                               would be the single most misleading thing this
                               page could do. */}
-                          {realityState.confidence_available
-                            ? `${realityState.confidence}%`
-                            : "confidence unavailable"}{" "}
-                          · {realityState.status}
-                        </span>
+                          {realityState.confidence_available ? (
+                            <Badge tone="accent">
+                              {realityState.confidence}% confident
+                            </Badge>
+                          ) : (
+                            <Badge tone="neutral">Confidence unavailable</Badge>
+                          )}
+                        </div>
                       </div>
-                      {realityState.value_selected ? (
-                        <pre className="tabular mt-2 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                          {JSON.stringify(realityState.value, null, 2)}
-                        </pre>
-                      ) : (
-                        /* No value was selected. Showing "null" in a value box
-                           would read as "the value is null", which is a
-                           different and false claim. */
-                        <p className="mt-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                          No value selected
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs text-muted-foreground">
+
+                      <div className="mt-3">
+                        {realityState.value_selected ? (
+                          <DataView value={realityState.value} />
+                        ) : (
+                          /* No value was selected. Showing "null" in a value
+                             box would read as "the value is null", which is a
+                             different and false claim. */
+                          <p className="rounded-md border border-dashed border-border px-3.5 py-3 text-xs text-muted-foreground">
+                            No value selected — the sources disagree and nothing
+                            available ranks one above another.
+                          </p>
+                        )}
+                      </div>
+
+                      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                         {realityState.selection_reason}
                       </p>
-                      <p className="tabular mt-1 text-xs text-muted-foreground">
-                        {realityState.supporting_count} supporting ·{" "}
-                        {realityState.dissenting_count} dissenting ·{" "}
-                        {realityState.source_count} sources ·{" "}
-                        {realityState.algorithm_version}
-                      </p>
+
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                        <Badge tone="outline" size="sm">
+                          {realityState.supporting_count} supporting
+                        </Badge>
+                        <Badge
+                          tone={
+                            realityState.dissenting_count > 0
+                              ? "degraded"
+                              : "outline"
+                          }
+                          size="sm"
+                        >
+                          {realityState.dissenting_count} dissenting
+                        </Badge>
+                        <Badge tone="outline" size="sm">
+                          {realityState.source_count}{" "}
+                          {realityState.source_count === 1
+                            ? "source"
+                            : "sources"}
+                        </Badge>
+                        <span className="tabular ml-auto text-xs text-muted-foreground">
+                          {realityState.algorithm_version}
+                        </span>
+                      </div>
 
                       <EvidenceTrail
                         entityId={realityState.entity_id}

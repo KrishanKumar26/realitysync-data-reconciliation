@@ -63,10 +63,10 @@ describe("Sources page", () => {
     // "which system is this" is the first thing an operator needs, and
     // host:port alone does not answer it.
     expect(
-      within(link).getByText(
-        "PostgreSQL · db.example.com:5432/warehouse · require",
-      ),
+      within(link).getByText("db.example.com:5432/warehouse"),
     ).toBeInTheDocument();
+    expect(within(link).getByText("PostgreSQL")).toBeInTheDocument();
+    expect(within(link).getByText("TLS require")).toBeInTheDocument();
   });
 
   it("surfaces a load failure rather than showing an empty list", async () => {

@@ -1,3 +1,4 @@
+import { MapPinOff } from "lucide-react";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -9,6 +10,7 @@ export default function NotFound() {
     <Panel>
       <PanelBody className="p-0">
         <EmptyState
+          icon={<MapPinOff />}
           title="Page not found"
           description="That destination does not exist in this workspace."
           action={

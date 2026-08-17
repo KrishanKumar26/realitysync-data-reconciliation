@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthScreen } from "@/components/auth/auth-screen";
 
-import { ANONYMOUS, authenticatedSession, renderWithSession, stubApi } from "./helpers";
+import {
+  ANONYMOUS,
+  authenticatedSession,
+  renderWithSession,
+  stubApi,
+} from "./helpers";
 
 describe("AuthScreen", () => {
   afterEach(() => {
@@ -42,7 +47,10 @@ describe("AuthScreen", () => {
       "/api/auth/login": {
         status: 401,
         body: {
-          error: { code: "UNAUTHENTICATED", message: "Invalid email or password." },
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Invalid email or password.",
+          },
         },
       },
     });
@@ -67,7 +75,10 @@ describe("AuthScreen", () => {
       "/api/auth/login": {
         status: 401,
         body: {
-          error: { code: "UNAUTHENTICATED", message: "Invalid email or password." },
+          error: {
+            code: "UNAUTHENTICATED",
+            message: "Invalid email or password.",
+          },
         },
       },
     });
@@ -108,7 +119,10 @@ describe("AuthScreen", () => {
     await user.click(screen.getByRole("button", { name: "Create one" }));
 
     await user.type(screen.getByLabelText("Your name"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Workspace name"), "Analytical Engines");
+    await user.type(
+      screen.getByLabelText("Workspace name"),
+      "Analytical Engines",
+    );
     await user.type(screen.getByLabelText("Email"), "not-an-email@x.com");
     await user.type(screen.getByLabelText("Password"), "correct-horse-battery");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
@@ -118,7 +132,10 @@ describe("AuthScreen", () => {
         screen.getByText("value is not a valid email address"),
       ).toBeInTheDocument();
     });
-    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Email")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("checks the password length before calling the API", async () => {
@@ -129,13 +146,20 @@ describe("AuthScreen", () => {
     await user.click(screen.getByRole("button", { name: "Create one" }));
 
     await user.type(screen.getByLabelText("Your name"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Workspace name"), "Analytical Engines");
+    await user.type(
+      screen.getByLabelText("Workspace name"),
+      "Analytical Engines",
+    );
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
     await user.type(screen.getByLabelText("Password"), "tiny");
     await user.click(screen.getByRole("button", { name: "Create workspace" }));
 
-    expect(await screen.findByText("Use at least 12 characters.")).toBeInTheDocument();
-    expect(calls.some((call) => call.url.endsWith("/api/auth/register"))).toBe(false);
+    expect(
+      await screen.findByText("Use at least 12 characters."),
+    ).toBeInTheDocument();
+    expect(calls.some((call) => call.url.endsWith("/api/auth/register"))).toBe(
+      false,
+    );
   });
 
   it("switches between signing in and creating a workspace", async () => {
@@ -169,7 +193,10 @@ describe("AuthScreen", () => {
     await renderWithSession(<AuthScreen />);
 
     expect(screen.getByLabelText("Email")).toHaveAttribute("type", "email");
-    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "type",
+      "password",
+    );
 
     await user.click(screen.getByRole("button", { name: "Create one" }));
     expect(screen.getByLabelText("Password")).toHaveAttribute(

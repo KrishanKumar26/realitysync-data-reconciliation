@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
+import { Check } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
@@ -230,9 +232,12 @@ function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <span
-        className="h-2.5 w-2.5 rounded-full bg-accent-cyan"
         aria-hidden="true"
-      />
+        className="relative flex h-5 w-5 shrink-0 items-center justify-center"
+      >
+        <span className="absolute left-0 h-3.5 w-3.5 rounded-full border-[1.5px] border-accent-cyan" />
+        <span className="absolute right-0 h-3.5 w-3.5 rounded-full border-[1.5px] border-accent-violet" />
+      </span>
       <span className="text-sm font-semibold tracking-tight">RealitySync</span>
     </span>
   );
@@ -272,16 +277,36 @@ function BrandPanel() {
           Know what is actually happening.
         </p>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          RealitySync reconciles observations from every connected source into
-          one continuously verified state — and shows the evidence behind each
-          conclusion.
+          RealitySync reads every connected source, compares what each one says,
+          and shows you the current value together with the evidence behind it —
+          including where they disagree.
         </p>
       </div>
 
-      <p className="relative text-xs text-muted-foreground">
-        Every value in RealitySync comes from a real source. Nothing is
-        estimated to fill a gap.
-      </p>
+      <div className="relative space-y-3">
+        <ul className="space-y-2.5">
+          {[
+            "Connects to PostgreSQL and MySQL over TLS, read-only.",
+            "Records what each source said, and when it said it.",
+            "Flags disagreements instead of silently picking a winner.",
+          ].map((line) => (
+            <li
+              key={line}
+              className="flex items-start gap-2.5 text-sm text-muted-foreground"
+            >
+              <Check
+                className="mt-0.5 h-4 w-4 shrink-0 text-accent-cyan"
+                aria-hidden="true"
+              />
+              {line}
+            </li>
+          ))}
+        </ul>
+        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+          Every value comes from a real source. Nothing is estimated to fill a
+          gap.
+        </p>
+      </div>
     </aside>
   );
 }

@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { Building2, ShieldCheck, Users } from "lucide-react";
+
 import { useSession } from "@/components/auth/session-provider";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/states";
@@ -57,15 +61,14 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Workspace, members and security.
-        </p>
-      </header>
+      <PageHeader
+        title="Settings"
+        description="Workspace, members and security."
+      />
 
       <Panel>
         <PanelHeader
+          icon={<Building2 />}
           title="Workspace"
           description="The organization this session is acting in."
         />
@@ -107,6 +110,7 @@ export default function SettingsPage() {
 
       <Panel>
         <PanelHeader
+          icon={<Users />}
           title="Members"
           description="People with access to this workspace."
         />
@@ -131,22 +135,35 @@ export default function SettingsPage() {
                   key={member.user_id}
                   className="flex items-center justify-between gap-4 px-5 py-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-foreground">
-                      {member.full_name}
-                      {member.user_id === currentUserId ? (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          you
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {member.email}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-medium text-muted-foreground"
+                    >
+                      {member.full_name
+                        .split(" ")
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase() ?? "")
+                        .join("")}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-foreground">
+                        {member.full_name}
+                        {member.user_id === currentUserId ? (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            you
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {member.email}
+                      </p>
+                    </div>
                   </div>
-                  <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs capitalize text-muted-foreground">
+                  <Badge tone="outline" className="capitalize">
                     {member.role}
-                  </span>
+                  </Badge>
                 </li>
               ))}
             </ul>
@@ -156,11 +173,12 @@ export default function SettingsPage() {
 
       <Panel>
         <PanelHeader
+          icon={<ShieldCheck />}
           title="Security"
           description="Session and access controls."
         />
         <PanelBody>
-          <ul className="space-y-2 text-sm text-muted-foreground">
+          <ul className="space-y-3 text-sm leading-relaxed text-muted-foreground">
             <li>
               Sessions are stored server-side and can be revoked immediately.
               Signing out ends the session on the server, not just in this

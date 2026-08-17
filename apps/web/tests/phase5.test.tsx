@@ -24,8 +24,20 @@ const UNGRADED_CONFLICT = {
   details: {
     divergence: "15",
     competing_values: [
-      { value: 42, weight: "0", share: "0", sources: ["s1"], observation_count: 1 },
-      { value: 57, weight: "0", share: "0", sources: ["s2"], observation_count: 1 },
+      {
+        value: 42,
+        weight: "0",
+        share: "0",
+        sources: ["s1"],
+        observation_count: 1,
+      },
+      {
+        value: 57,
+        weight: "0",
+        share: "0",
+        sources: ["s2"],
+        observation_count: 1,
+      },
     ],
   },
   detected_at: "2026-08-10T10:00:00Z",
@@ -97,7 +109,7 @@ describe("Conflicts page", () => {
 
     await renderWithSession(<ConflictsPage />);
 
-    expect(await screen.findByText("Value conflict")).toBeInTheDocument();
+    expect(await screen.findByText("Different values")).toBeInTheDocument();
     expect(screen.getByText("LAPTOP-001")).toBeInTheDocument();
     expect(screen.getByText("15")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
@@ -146,11 +158,15 @@ describe("Conflicts page", () => {
     const { calls } = stubApi({
       ...SESSION,
       "/api/conflicts": { body: [UNGRADED_CONFLICT] },
-      "/api/conflicts/conflict-1": { body: { ...UNGRADED_CONFLICT, status: "resolved" } },
+      "/api/conflicts/conflict-1": {
+        body: { ...UNGRADED_CONFLICT, status: "resolved" },
+      },
     });
 
     await renderWithSession(<ConflictsPage />);
-    await user.click(await screen.findByRole("button", { name: "Mark resolved" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Mark resolved" }),
+    );
 
     await waitFor(() => {
       const patch = calls.find((c) => c.method === "PATCH");
@@ -162,14 +178,22 @@ describe("Conflicts page", () => {
     stubApi({
       ...SESSION,
       "/api/conflicts": {
-        body: [{ ...UNGRADED_CONFLICT, status: "resolved", resolved_at: "2026-08-10T11:00:00Z" }],
+        body: [
+          {
+            ...UNGRADED_CONFLICT,
+            status: "resolved",
+            resolved_at: "2026-08-10T11:00:00Z",
+          },
+        ],
       },
     });
 
     await renderWithSession(<ConflictsPage />);
 
-    await screen.findByText("Value conflict");
-    expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
+    await screen.findByText("Different values");
+    expect(
+      screen.queryByRole("button", { name: "Mark resolved" }),
+    ).not.toBeInTheDocument();
   });
 
   it("filters by status", async () => {
@@ -283,7 +307,9 @@ describe("Timeline page", () => {
       "/api/entities": { body: [ENTITY] },
       "/timeline": {
         status: 500,
-        body: { error: { code: "INTERNAL_ERROR", message: "Database unavailable." } },
+        body: {
+          error: { code: "INTERNAL_ERROR", message: "Database unavailable." },
+        },
       },
     });
 
@@ -303,7 +329,9 @@ describe("Timeline page", () => {
 
     await renderWithSession(<TimelinePage />);
 
-    const select = await screen.findByLabelText("Entity");
-    expect(within(select).getByRole("option")).toHaveTextContent("LAPTOP-001 (2)");
+    const select = await screen.findByLabelText("Item");
+    expect(within(select).getByRole("option")).toHaveTextContent(
+      "LAPTOP-001 (2 records)",
+    );
   });
 });
