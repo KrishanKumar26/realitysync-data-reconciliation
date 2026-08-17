@@ -220,14 +220,25 @@ class PostgresConnector(DataConnector):
 
         warnings: list[str] = []
 
-        # A connection that reached us unencrypted despite sslmode=require
-        # would mean libpq behaved unexpectedly. Checked rather than assumed:
-        # this is the guarantee the whole SSL policy rests on.
-        if info.get("ssl_active") is not True:
+        # Checked rather than assumed: this is the guarantee the whole SSL
+        # policy rests on. But it is asked of *libpq*, not of the server.
+        #
+        # `pg_stat_ssl` describes the backend's own session, which is the wrong
+        # hop. Every managed provider that terminates TLS at a proxy - Neon,
+        # Supabase's pooler, PgBouncer, RDS Proxy - reports ssl=false there
+        # while the client's connection is fully encrypted. Trusting it meant
+        # refusing a genuinely encrypted connection, which is how this was
+        # found: a Neon source failed with "established without encryption"
+        # while libpq reported ssl_in_use=True and the same server refused a
+        # plaintext connection outright.
+        #
+        # libpq knows whether it negotiated TLS on its own socket. Nothing
+        # downstream can fool it, and no proxy can hide it.
+        if not _tls_in_use(connection):
             raise ConnectorError(
                 ConnectorErrorCode.TLS_FAILED,
                 "The connection was established without encryption.",
-                detail="pg_stat_ssl reported ssl=false",
+                detail="libpq reported ssl_in_use=false",
                 remediation="RealitySync requires TLS. Enable ssl on the source database.",
             )
 
@@ -576,6 +587,20 @@ class PostgresConnector(DataConnector):
             # Target only. No username, no password, no connection string.
             details={"target": self._config.display_target},
         )
+
+
+def _tls_in_use(connection: psycopg.AsyncConnection[Any]) -> bool:
+    """Whether libpq negotiated TLS on this connection.
+
+    The client's own view of its own socket, which is the only hop that
+    matters and the one no proxy can misreport. Falls back to True when the
+    attribute is unavailable rather than failing a working connection: the
+    connection was opened with sslmode=require, and libpq refuses to complete
+    such a connection unencrypted, so reaching this point already implies TLS.
+    """
+    pgconn = getattr(connection, "pgconn", None)
+    in_use = getattr(pgconn, "ssl_in_use", None)
+    return True if in_use is None else bool(in_use)
 
 
 def build_external_id(key_values: dict[str, Any]) -> str:

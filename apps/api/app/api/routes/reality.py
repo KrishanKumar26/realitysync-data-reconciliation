@@ -439,7 +439,12 @@ async def list_conflicts_route(
     if entity_id is not None:
         query = query.where(Conflict.entity_id == entity_id)
 
-    rows = await db.execute(query.order_by(Conflict.detected_at.desc()).limit(limit))
+    # Total ordering. `detected_at` alone ties routinely: one recalculation
+    # writes several conflicts in a single transaction, so they share an
+    # instant and PostgreSQL is free to return them in any order. Two identical
+    # requests could then disagree about what the system believes, which is the
+    # wrong kind of inconsistency in a product built on determinism.
+    rows = await db.execute(query.order_by(Conflict.detected_at.desc(), Conflict.id).limit(limit))
     return [
         ConflictResponse(
             **{

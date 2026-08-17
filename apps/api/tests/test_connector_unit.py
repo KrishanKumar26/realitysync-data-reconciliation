@@ -341,3 +341,54 @@ def test_composite_keys_are_unambiguous() -> None:
 
 def test_external_ids_are_stable_regardless_of_column_order() -> None:
     assert build_external_id({"b": 2, "a": 1}) == build_external_id({"a": 1, "b": 2})
+
+
+# --- TLS detection, and the hop it asks about -------------------------------
+
+
+class _FakePgConn:
+    def __init__(self, ssl_in_use: object) -> None:
+        self.ssl_in_use = ssl_in_use
+
+
+class _FakeConnection:
+    def __init__(self, pgconn: object) -> None:
+        self.pgconn = pgconn
+
+
+def test_tls_is_detected_from_libpq_not_the_server() -> None:
+    """BUG FOUND ON A REAL DEPLOYMENT, FIXED HERE.
+
+    The TLS check used to ask the *server* - `pg_stat_ssl` - whether the
+    session was encrypted. That describes the backend's own connection, which
+    is the wrong hop. Every managed provider that terminates TLS at a proxy
+    (Neon, Supabase's pooler, PgBouncer, RDS Proxy) reports ssl=false there
+    while the client's connection is fully encrypted.
+
+    The result was a refusal to connect to a genuinely encrypted database:
+    Neon failed with "established without encryption" while libpq reported
+    ssl_in_use=True and the same server refused a plaintext connection
+    outright.
+
+    libpq knows whether it negotiated TLS on its own socket. That is the only
+    hop that matters, and no proxy can misreport it.
+    """
+    from app.connectors.postgres.connector import _tls_in_use
+
+    assert _tls_in_use(_FakeConnection(_FakePgConn(True))) is True
+    assert _tls_in_use(_FakeConnection(_FakePgConn(False))) is False
+
+
+def test_tls_detection_does_not_fail_a_working_connection() -> None:
+    """Absent attribute must not be read as "unencrypted".
+
+    The connection was opened with sslmode=require, and libpq refuses to
+    complete such a connection unencrypted - so reaching this point already
+    implies TLS. Failing here would reject a working, encrypted connection
+    because of a driver version difference.
+    """
+    from app.connectors.postgres.connector import _tls_in_use
+
+    assert _tls_in_use(_FakeConnection(_FakePgConn(None))) is True
+    assert _tls_in_use(_FakeConnection(None)) is True
+    assert _tls_in_use(_FakeConnection(object())) is True
