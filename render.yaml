@@ -161,6 +161,15 @@ services:
     # the production standalone image rather than the dev server.
 
     envVars:
+      # Next.js standalone reads HOSTNAME to decide what to bind to, and Docker
+      # sets HOSTNAME to the container id. Without this it binds to the
+      # container's own address rather than 0.0.0.0, Render's proxy cannot
+      # reach it, and every request returns 502 while the logs cheerfully say
+      # "Ready". Verified: without it the server reports
+      # `LISTEN 192.168.x.x:10000`, with it `LISTEN 0.0.0.0:10000`.
+      - key: HOSTNAME
+        value: "0.0.0.0"
+
       # --- SET THIS (4 of 4) -------------------------------------------------
       # The API's full origin, e.g. https://realitysync-api.onrender.com
       #
