@@ -6,7 +6,7 @@ import { useSession } from "@/components/auth/session-provider";
 import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, PasswordInput } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -181,12 +181,11 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
               error={fieldErrors.password}
             >
               {({ inputId, describedBy }) => (
-                <Input
+                <PasswordInput
                   id={inputId}
                   aria-describedby={describedBy}
                   aria-invalid={Boolean(fieldErrors.password)}
                   name="password"
-                  type="password"
                   autoComplete={isSignUp ? "new-password" : "current-password"}
                   required
                   value={password}

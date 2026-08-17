@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, PasswordInput } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
 import {
@@ -191,10 +191,9 @@ export function EditSourceForm({
         error={fieldErrors.password}
       >
         {({ inputId, describedBy }) => (
-          <Input
+          <PasswordInput
             id={inputId}
             aria-describedby={describedBy}
-            type="password"
             autoComplete="new-password"
             placeholder="Unchanged"
             value={password}

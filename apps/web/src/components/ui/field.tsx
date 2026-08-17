@@ -1,6 +1,8 @@
+import { Eye, EyeOff } from "lucide-react";
 import {
   forwardRef,
   useId,
+  useState,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
@@ -87,3 +89,55 @@ export function Field({
     </div>
   );
 }
+
+/**
+ * Password input with a reveal control.
+ *
+ * A password box that cannot be read back is a good default and a bad only
+ * option: people mistype, and on a phone with autocorrect they mistype often.
+ * The alternative — retyping blind after every failed sign-in — is what makes
+ * someone reset a password they already knew.
+ *
+ * The toggle is a `<button type="button">` so it never submits the form, and
+ * its accessible name changes with the state, so a screen reader announces
+ * what pressing it will do rather than a static "toggle".
+ *
+ * `autoComplete` is left to the caller: "current-password" and
+ * "new-password" mean different things to a password manager, and guessing
+ * here would fight it.
+ */
+export const PasswordInput = forwardRef<
+  HTMLInputElement,
+  Omit<InputHTMLAttributes<HTMLInputElement>, "type">
+>(function PasswordInput({ className, ...props }, ref) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        ref={ref}
+        type={visible ? "text" : "password"}
+        className={cn("pr-10", className)}
+        {...props}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((shown) => !shown)}
+        aria-pressed={visible}
+        aria-label={visible ? "Hide password" : "Show password"}
+        title={visible ? "Hide password" : "Show password"}
+        className={cn(
+          "absolute right-0 top-0 flex h-10 w-10 items-center justify-center rounded-md",
+          "text-muted-foreground transition-colors duration-150 hover:text-foreground",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        )}
+      >
+        {visible ? (
+          <EyeOff className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Eye className="h-4 w-4" aria-hidden="true" />
+        )}
+      </button>
+    </div>
+  );
+});

@@ -205,3 +205,40 @@ describe("AuthScreen", () => {
     );
   });
 });
+
+describe("Password visibility", () => {
+  it("is hidden by default and can be revealed", async () => {
+    // Retyping a password blind after a failed sign-in is what makes someone
+    // reset a password they already knew.
+    const user = userEvent.setup({ delay: null });
+    stubApi({ "/api/auth/session": { body: ANONYMOUS } });
+
+    await renderWithSession(<AuthScreen />);
+
+    const password = await screen.findByLabelText("Password");
+    expect(password).toHaveAttribute("type", "password");
+
+    await user.click(screen.getByRole("button", { name: "Show password" }));
+    expect(password).toHaveAttribute("type", "text");
+
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(password).toHaveAttribute("type", "password");
+  });
+
+  it("does not submit the form", async () => {
+    // A bare <button> inside a form defaults to type="submit", which would
+    // attempt a sign-in every time someone peeked at what they typed.
+    const user = userEvent.setup({ delay: null });
+    const { calls } = stubApi({ "/api/auth/session": { body: ANONYMOUS } });
+
+    await renderWithSession(<AuthScreen />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Show password" }),
+    );
+
+    expect(calls.some((call) => call.url.includes("/api/auth/login"))).toBe(
+      false,
+    );
+  });
+});

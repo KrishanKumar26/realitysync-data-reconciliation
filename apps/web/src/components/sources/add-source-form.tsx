@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, PasswordInput } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
 import {
   createSource,
@@ -255,11 +255,10 @@ export function AddSourceForm({
           error={fieldErrors.password}
         >
           {({ inputId, describedBy }) => (
-            <Input
+            <PasswordInput
               id={inputId}
               aria-describedby={describedBy}
               aria-invalid={Boolean(fieldErrors.password)}
-              type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
