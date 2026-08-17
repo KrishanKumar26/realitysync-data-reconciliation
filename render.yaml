@@ -1,0 +1,195 @@
+# ---------------------------------------------------------------------------
+# RealitySync — Render Blueprint
+#
+# Deploy:
+#   1. Render dashboard → New → Blueprint → pick this repository
+#   2. Render reads this file and proposes four resources
+#   3. Fill in the four values marked "SET THIS" below, then Apply
+#
+# Four resources are created:
+#   realitysync-db     PostgreSQL   the application's own database
+#   realitysync-redis  Key Value    rate limiting only, never authoritative
+#   realitysync-api    Web (Docker) FastAPI
+#   realitysync-web    Web (Docker) Next.js
+#
+# ---------------------------------------------------------------------------
+# READ THIS FIRST — the app refuses to start in production if misconfigured
+#
+# app/core/config.py rejects a deployment that would be unsafe. This is
+# deliberate: it fails at boot with a clear message rather than running with a
+# published key nobody noticed. It refuses when:
+#
+#   SECRET_KEY is the development default
+#   CREDENTIAL_ENCRYPTION_KEY is the development default (published in the repo)
+#   COOKIE_SECURE is false
+#   CORS_ORIGINS contains an http:// origin
+#
+# So a first deploy that boots is a deploy that was configured correctly.
+# ---------------------------------------------------------------------------
+
+databases:
+  - name: realitysync-db
+    databaseName: realitysync
+    user: realitysync
+    plan: free
+    postgresMajorVersion: "16"
+
+services:
+  # -------------------------------------------------------------------------
+  # Redis — rate limiting, SSE fan-out, realtime tickets. Nothing authoritative
+  # lives here. Losing it degrades the product; it never corrupts it, and the
+  # rate limiter fails open by design.
+  # -------------------------------------------------------------------------
+  - type: redis
+    name: realitysync-redis
+    plan: free
+    ipAllowList: []       # private network only; nothing outside Render reaches it
+    maxmemoryPolicy: allkeys-lru
+
+  # -------------------------------------------------------------------------
+  # API
+  # -------------------------------------------------------------------------
+  - type: web
+    name: realitysync-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health
+
+    # Migrations. preDeployCommand needs a paid instance type; on the free plan
+    # leave it commented and run `alembic upgrade head` once from the Render
+    # Shell after the first deploy. Either way migrations run exactly once per
+    # release, never on every container start.
+    # preDeployCommand: alembic upgrade head
+
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # --- SET THIS (1 of 4) -------------------------------------------------
+      # Render's own connection string starts with `postgresql://`. SQLAlchemy
+      # needs the driver named explicitly, so copy the database's *Internal*
+      # connection string and change the scheme:
+      #
+      #   postgresql://user:pass@host/db
+      #   postgresql+psycopg://user:pass@host/db      <- paste this form
+      #
+      # Internal, not External: it stays on Render's private network.
+      - key: DATABASE_URL
+        sync: false
+
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: realitysync-redis
+          property: connectionString
+
+      # --- SET THIS (2 of 4) -------------------------------------------------
+      # The frontend's full origin, e.g. https://realitysync-web.onrender.com
+      # Must be https and must match exactly — no trailing slash. A mismatch
+      # here means the site loads and every API call returns 403.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # --- SET THIS (3 of 4) -------------------------------------------------
+      # Generate with:
+      #   cd apps/api && .venv/bin/python -c \
+      #     "from app.core.encryption import generate_key; print(generate_key())"
+      #
+      # This key encrypts every stored source credential. LOSE IT AND EVERY
+      # STORED DATABASE PASSWORD BECOMES PERMANENTLY UNREADABLE. Keep a copy
+      # somewhere safe before you deploy. Not generateValue: Render would
+      # produce a random string, and this must be a base64 32-byte AES key.
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: CREDENTIAL_ENCRYPTION_KEY_VERSION
+        value: "1"
+
+      # Session signing secret. Render generates and stores this one itself.
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Cookies. Cross-site because the API and the web app are on different
+      # onrender.com subdomains, which requires SameSite=none — and SameSite=none
+      # is only valid with Secure, which the config enforces.
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+
+      # Rate limiting on the credential endpoints. Fails open if Redis is
+      # unreachable, and /api/system/status reports that it is degraded.
+      - key: RATE_LIMITING_ENABLED
+        value: "true"
+
+      # Background syncing. Free instances sleep after ~15 minutes idle, which
+      # stops the scheduler — nothing is lost, sources simply go stale and
+      # manual sync still works. Set false if that confuses a demo, or move to
+      # a paid instance to keep it running.
+      - key: SYNC_SCHEDULER_ENABLED
+        value: "true"
+      - key: SYNC_SCHEDULER_TICK_SECONDS
+        value: "60"
+
+      # SSRF protection. OFF is correct for a hosted deployment: it stops a
+      # tenant aiming a connector at Render's internal network, where the
+      # connection test's error codes would otherwise work as a port scanner.
+      # Only turn this on if you are self-hosting against a private database
+      # and understand what you are allowing. See docs/security.md.
+      - key: CONNECTOR_ALLOW_PRIVATE_HOSTS
+        value: "false"
+
+      - key: CONNECTOR_CONNECT_TIMEOUT_SECONDS
+        value: "10"
+      - key: CONNECTOR_STATEMENT_TIMEOUT_SECONDS
+        value: "30"
+
+  # -------------------------------------------------------------------------
+  # Frontend
+  # -------------------------------------------------------------------------
+  - type: web
+    name: realitysync-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: ./apps/web
+    # No target needed: `runner` is the final stage, so a plain build produces
+    # the production standalone image rather than the dev server.
+
+    envVars:
+      # --- SET THIS (4 of 4) -------------------------------------------------
+      # The API's full origin, e.g. https://realitysync-api.onrender.com
+      #
+      # NEXT_PUBLIC_* values are inlined into the bundle at BUILD time, not read
+      # at runtime. Changing it later requires a rebuild, not a restart — and
+      # if it is wrong the browser will call the wrong host with no server-side
+      # error to explain why.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_ENVIRONMENT
+        value: production
+
+# ---------------------------------------------------------------------------
+# The chicken-and-egg, and how to get out of it
+#
+# The API needs the web app's URL (CORS_ORIGINS) and the web app needs the
+# API's URL (NEXT_PUBLIC_API_URL) — but neither URL exists until Render has
+# created the service. So:
+#
+#   1. Apply the blueprint. Both services will be created. The first build may
+#      fail or the app may refuse to boot — that is expected at this point.
+#   2. Copy each service's URL from its Render page.
+#   3. Set CORS_ORIGINS on the API and NEXT_PUBLIC_API_URL on the web service.
+#   4. Redeploy the web service (a rebuild is required — the value is inlined).
+#   5. Run `alembic upgrade head` once from the API's Shell tab.
+#   6. Open the web URL and register the first account.
+#
+# There is no seeded user and no demo data. The first account you register
+# becomes the owner of a new, empty organization — which is the product working
+# as intended, not a missing step.
+# ---------------------------------------------------------------------------
