@@ -3,14 +3,20 @@
 #
 # Deploy:
 #   1. Render dashboard → New → Blueprint → pick this repository
-#   2. Render reads this file and proposes four resources
+#   2. Render reads this file and proposes three resources
 #   3. Fill in the four values marked "SET THIS" below, then Apply
 #
-# Four resources are created:
-#   realitysync-db     PostgreSQL   the application's own database
+# Three resources are created:
 #   realitysync-redis  Key Value    rate limiting only, never authoritative
 #   realitysync-api    Web (Docker) FastAPI
 #   realitysync-web    Web (Docker) Next.js
+#
+# The PostgreSQL database is deliberately NOT declared here. Render's free tier
+# allows one free database per account, so a workspace that already has one
+# cannot create another - and a blueprint that fails on the database aborts the
+# API service with it. Bring your own Postgres instead (Neon, Supabase, or a
+# Render database you create by hand) and paste its URL into DATABASE_URL.
+# Any provider works as long as it speaks TLS, which this app requires.
 #
 # ---------------------------------------------------------------------------
 # READ THIS FIRST — the app refuses to start in production if misconfigured
@@ -26,13 +32,6 @@
 #
 # So a first deploy that boots is a deploy that was configured correctly.
 # ---------------------------------------------------------------------------
-
-databases:
-  - name: realitysync-db
-    databaseName: realitysync
-    user: realitysync
-    plan: free
-    postgresMajorVersion: "16"
 
 services:
   # -------------------------------------------------------------------------
@@ -71,14 +70,14 @@ services:
         value: INFO
 
       # --- SET THIS (1 of 4) -------------------------------------------------
-      # Render's own connection string starts with `postgresql://`. SQLAlchemy
-      # needs the driver named explicitly, so copy the database's *Internal*
-      # connection string and change the scheme:
+      # Your PostgreSQL connection string, with the driver named explicitly.
+      # Providers hand out `postgresql://`; SQLAlchemy needs the driver:
       #
-      #   postgresql://user:pass@host/db
+      #   postgresql://user:pass@host/db              <- what you are given
       #   postgresql+psycopg://user:pass@host/db      <- paste this form
       #
-      # Internal, not External: it stays on Render's private network.
+      # Keep any `?sslmode=require` the provider includes. This connection
+      # crosses the public internet, so TLS is not optional.
       - key: DATABASE_URL
         sync: false
 
@@ -181,6 +180,8 @@ services:
 # API's URL (NEXT_PUBLIC_API_URL) — but neither URL exists until Render has
 # created the service. So:
 #
+#   0. Create a PostgreSQL database somewhere first (Neon's free tier is the
+#      least friction) and keep its connection string to hand.
 #   1. Apply the blueprint. Both services will be created. The first build may
 #      fail or the app may refuse to boot — that is expected at this point.
 #   2. Copy each service's URL from its Render page.
