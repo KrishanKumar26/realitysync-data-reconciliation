@@ -130,6 +130,17 @@ class Settings(BaseSettings):
     #: unreachable host fails in seconds rather than holding a worker.
     connector_connect_timeout_seconds: int = 10
     connector_statement_timeout_seconds: int = 30
+    #: Whether a data source may point at a non-public address.
+    #:
+    #: Off by default, which is the safe posture: without it a tenant can aim a
+    #: connector at loopback, a private range or a cloud metadata endpoint, and
+    #: the connection test's error codes become an internal port scanner.
+    #: Verified exploitable in Phase 11 - see app/connectors/network.py.
+    #:
+    #: Local development and self-hosted deployments whose databases genuinely
+    #: sit on a private network turn it on deliberately. Docker service
+    #: addresses are private by definition, so the dev stack sets it true.
+    connector_allow_private_hosts: bool = False
     #: Ceiling on rows read in a single sync. Bounds memory and run time
     #: against a table far larger than expected.
     connector_max_rows_per_sync: int = 50_000

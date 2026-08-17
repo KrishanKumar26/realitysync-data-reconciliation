@@ -19,7 +19,22 @@ from app.models.data_source import SourceKind, SourceStatus
 from app.models.source_stream import EventTimeSemantics
 from app.models.sync_run import SyncStatus
 
-Identifier = Annotated[str, Field(min_length=1, max_length=128)]
+#: A schema, table or column name arriving from a client.
+#:
+#: Length alone was not enough. These names are built into SQL by the MySQL
+#: connector, which has no parameterised identifiers, and the pattern refuses
+#: at the boundary what ``quote_identifier`` would otherwise refuse much later
+#: at query time. Accepting one and failing on every subsequent sync is a
+#: stored misconfiguration nobody sees until the data stops arriving.
+#:
+#: Deliberately a conservative allowlist rather than a denylist of dangerous
+#: characters: a real schema, table or column name is letters, digits,
+#: underscores, dollars and hyphens, and enumerating what to forbid means
+#: losing to the first character nobody thought of.
+Identifier = Annotated[
+    str,
+    Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_$-]+$"),
+]
 
 
 # --- Requests --------------------------------------------------------------

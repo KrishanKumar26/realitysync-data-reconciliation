@@ -32,6 +32,8 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.network import assert_host_is_permitted
+from app.connectors.types import ConnectorError, ConnectorErrorCode
 from app.db.tenancy import MissingOrganizationScopeError, assert_organization_scoped
 from app.models.conflict import Conflict
 from app.models.data_source import DataSource
@@ -773,7 +775,287 @@ async def test_a_scheduled_run_claims_no_human_actor(
 
 
 # ===========================================================================
-# 8. Schema-level defences
+# 8. SSRF — the connector host is attacker-supplied
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    ("host", "what_it_reaches"),
+    [
+        ("127.0.0.1", "the deployment itself"),
+        ("localhost", "the deployment itself, by name"),
+        ("169.254.169.254", "the AWS/GCP instance metadata service"),
+        ("10.0.0.1", "an RFC1918 private network"),
+        ("192.168.1.1", "a home/office private network"),
+        ("172.16.0.1", "the other RFC1918 range"),
+        ("0.0.0.0", "the unspecified address"),  # noqa: S104 - a test input, not a bind
+    ],
+)
+def test_a_connector_refuses_a_non_public_host(host: str, what_it_reaches: str) -> None:
+    """VULNERABILITY FOUND AND FIXED IN PHASE 11.
+
+    The connector host comes from whoever configures the source. Nothing
+    restricted it, so a tenant could aim RealitySync at internal infrastructure
+    and have it connect on their behalf, from inside the deployment's network.
+
+    It was verified exploitable before the fix. The connection test's own error
+    codes formed a working port scanner:
+
+        169.254.169.254:80   timeout       host exists, filtered
+        127.0.0.1:6379       unreachable   nothing listening on that port
+        postgres:5432        tls_failed    a PostgreSQL is running here
+
+    ``unreachable`` against ``tls_failed`` is the entire scan. And the
+    application's own database is reachable by hostname from inside the
+    deployment, so a tenant who guessed its credentials would read every other
+    tenant's data through a feature working exactly as designed.
+    """
+    with pytest.raises(ConnectorError) as raised:
+        assert_host_is_permitted(host, allow_private=False)
+
+    assert raised.value.code is ConnectorErrorCode.INVALID_CONFIGURATION
+    assert "not permitted" in raised.value.message
+
+
+def test_the_refusal_does_not_echo_the_resolved_address() -> None:
+    """The message must not answer the question the attacker asked.
+
+    Reporting "127.0.0.1 is private" back to the caller preserves exactly the
+    oracle the check exists to close: it confirms what a hostname resolves to.
+    """
+    with pytest.raises(ConnectorError) as raised:
+        assert_host_is_permitted("localhost", allow_private=False)
+
+    assert "127.0.0.1" not in raised.value.message
+    assert "::1" not in raised.value.message
+
+
+def test_a_public_host_is_permitted() -> None:
+    """A control that blocks legitimate use gets turned off."""
+    assert_host_is_permitted("8.8.8.8", allow_private=False)
+    # Unresolvable is not a policy failure - the ordinary "host not found"
+    # error is what the operator needs to see.
+    assert_host_is_permitted("nonexistent.invalid", allow_private=False)
+
+
+def test_the_escape_hatch_is_explicit() -> None:
+    """Self-hosted deployments on a private network opt in deliberately."""
+    assert_host_is_permitted("10.0.0.1", allow_private=True)
+
+
+def test_the_default_configuration_refuses_private_hosts() -> None:
+    """The safe posture must be the one you get without deciding anything."""
+    from app.core.config import Settings
+
+    # The *field* default, not an instance: the test environment deliberately
+    # sets the variable, so Settings() would report the test's choice rather
+    # than what a deployment gets when it decides nothing.
+    assert Settings.model_fields["connector_allow_private_hosts"].default is False
+
+
+async def test_a_source_aimed_at_the_application_database_cannot_connect(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """The end-to-end version of the attack, through the real API.
+
+    Creating the source is allowed - the host is only a string until something
+    connects - but the connection itself must be refused.
+    """
+    from app.connectors.mysql.config import parse_config as parse_mysql
+    from app.connectors.mysql.connector import MysqlConnector
+    from app.connectors.postgres.config import parse_config as parse_postgres
+    from app.connectors.postgres.connector import PostgresConnector
+
+    postgres = PostgresConnector(
+        config=parse_postgres(
+            {
+                "host": "127.0.0.1",
+                "port": 5432,
+                "database": "realitysync",
+                "username": "realitysync",
+                "ssl_mode": "require",
+            }
+        ),
+        password="change-me-locally",
+        allow_private_hosts=False,
+    )
+    with pytest.raises(ConnectorError) as raised:
+        await postgres.connect()
+    assert raised.value.code is ConnectorErrorCode.INVALID_CONFIGURATION
+
+    mysql = MysqlConnector(
+        config=parse_mysql(
+            {
+                "host": "127.0.0.1",
+                "port": 3306,
+                "database": "d",
+                "username": "u",
+                "ssl_mode": "require",
+            }
+        ),
+        password="p",
+        allow_private_hosts=False,
+    )
+    with pytest.raises(ConnectorError) as raised:
+        await mysql.connect()
+    assert raised.value.code is ConnectorErrorCode.INVALID_CONFIGURATION
+
+
+# ===========================================================================
+# 9. Mass assignment and input validation
+# ===========================================================================
+
+
+async def test_a_client_cannot_set_the_organization_on_a_resource(
+    tenants: tuple[Tenant, Tenant],
+) -> None:
+    """The tenant comes from the session, never from the request body.
+
+    If a client-supplied organization_id were honoured anywhere, every other
+    control in the system would be decoration.
+    """
+    a, b = tenants
+
+    response = await a.client.post(
+        "/api/entities",
+        json={
+            "entity_type": "asset",
+            "natural_key": f"MASS-{uuid.uuid4().hex[:8]}",
+            # Injected fields that must not be honoured.
+            "organization_id": str(b.account.organization_id),
+            "id": str(uuid.uuid4()),
+        },
+        headers=a.account.auth_headers(),
+    )
+
+    # Either rejected outright, or accepted with the injected fields ignored.
+    if response.status_code == 201:
+        created = response.json()
+        assert created["id"] != str(uuid.uuid4())
+        fetched = await b.client.get(
+            f"/api/entities/{created['id']}", headers=b.account.auth_headers()
+        )
+        assert fetched.status_code == 404, "an entity was created in another tenant"
+    else:
+        assert response.status_code == 422
+
+
+async def test_extra_fields_are_refused_rather_than_ignored(
+    client: AsyncClient,
+) -> None:
+    """`extra="forbid"` means a typo fails loudly instead of being dropped."""
+    account = await register(client)
+
+    response = await client.post(
+        "/api/entities",
+        json={
+            "entity_type": "asset",
+            "natural_key": f"X-{uuid.uuid4().hex[:8]}",
+            "unexpected_field": "value",
+        },
+        headers=account.auth_headers(),
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    ["not-a-uuid", "../../etc/passwd", "1 OR 1=1", "%00", "00000000-0000-0000-0000-00000000000"],
+)
+async def test_a_malformed_id_is_a_validation_error_not_a_crash(
+    client: AsyncClient, malformed: str
+) -> None:
+    """A malformed path parameter must not reach the database or leak a trace."""
+    account = await register(client)
+
+    response = await client.get(f"/api/entities/{malformed}", headers=account.auth_headers())
+
+    assert response.status_code in (404, 422)
+    body = response.text.lower()
+    assert "traceback" not in body
+    assert "sqlalchemy" not in body
+    assert "psycopg" not in body
+
+
+async def test_an_internal_error_does_not_leak_its_cause(client: AsyncClient) -> None:
+    """The error envelope must not carry driver text or a stack trace."""
+    account = await register(client)
+
+    response = await client.get(
+        "/api/entities/00000000-0000-0000-0000-000000000000",
+        headers=account.auth_headers(),
+    )
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert set(payload["error"]) == {"code", "message", "details", "request_id"}
+    assert "select" not in payload["error"]["message"].lower()
+
+
+# ===========================================================================
+# 10. SQL injection through identifiers
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "orders`; DROP TABLE users; --",
+        "orders\x00truncated",
+        "`injected`",
+    ],
+)
+def test_mysql_identifiers_reject_rather_than_escape(hostile: str) -> None:
+    """Table and column names reach the connector from stream configuration.
+
+    MySQL has no parameterised identifiers, so the connector builds them into
+    the statement. Refusing a backtick is a smaller surface than escaping one,
+    and it fails loudly rather than silently producing a different identifier
+    than intended.
+    """
+    from app.connectors.mysql.connector import quote_identifier
+
+    with pytest.raises(ConnectorError) as raised:
+        quote_identifier(hostile.replace("\\x00", "\x00"))
+
+    assert raised.value.code is ConnectorErrorCode.INVALID_CONFIGURATION
+    # The rejected value stays in `detail`, out of the user-facing message.
+    assert "DROP TABLE" not in raised.value.message
+
+
+async def test_a_hostile_stream_name_is_refused_at_the_api(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """The same defence, reached the way an attacker would reach it."""
+    account = await register(client)
+    source, _ = await seed_source(db, organization_id=account.organization_id, name="Inject")
+    await db.commit()
+
+    response = await client.post(
+        f"/api/data-sources/{source.id}/streams",
+        json={
+            "schema_name": "public",
+            "table_name": "t`; DROP TABLE observations; --",
+            "primary_key_columns": ["id"],
+            "event_time_semantics": "ingest_fallback",
+        },
+        headers=account.auth_headers(),
+    )
+
+    assert response.status_code in (400, 422)
+
+    # And the table it named is still there.
+    surviving = await db.scalar(
+        select(func.count())
+        .select_from(Observation)
+        .where(Observation.organization_id == account.organization_id)
+    )
+    assert surviving is not None
+
+
+# ===========================================================================
+# 11. Schema-level defences
 # ===========================================================================
 
 

@@ -144,6 +144,10 @@ services:
       # production is one nobody has actually tested. It fails open, so a
       # stopped redis container degrades it rather than blocking sign-in.
       RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-true}
+      # Docker service addresses are private by definition, so the dev stack
+      # opts in. Production leaves this off, which is the default: without it a
+      # tenant can aim a connector at internal infrastructure.
+      CONNECTOR_ALLOW_PRIVATE_HOSTS: ${CONNECTOR_ALLOW_PRIVATE_HOSTS:-true}
       # Background syncing. On by default so the scheduled path is the one
       # exercised during development, rather than a code path that only ever
       # runs in production.

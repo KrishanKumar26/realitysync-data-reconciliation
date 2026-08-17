@@ -25,6 +25,7 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
 from app.connectors.base import DataConnector
+from app.connectors.network import assert_host_is_permitted
 from app.connectors.postgres.config import PostgresConnectionConfig
 from app.connectors.postgres.errors import map_exception
 from app.connectors.types import (
@@ -81,8 +82,10 @@ class PostgresConnector(DataConnector):
         connect_timeout_seconds: int = 10,
         statement_timeout_seconds: int = 30,
         fetch_batch_size: int = 1_000,
+        allow_private_hosts: bool = False,
     ) -> None:
         self._config = config
+        self._allow_private_hosts = allow_private_hosts
         # The one place the password lives. Never logged, never in a repr,
         # never returned.
         self._password = password
@@ -130,6 +133,11 @@ class PostgresConnector(DataConnector):
     async def connect(self) -> None:
         if self._connection is not None and not self._connection.closed:
             return
+
+        # Re-checked here, not only at configuration time. A stored config is
+        # used long after it was validated, and the address behind a hostname
+        # can change in between.
+        assert_host_is_permitted(self._config.host, allow_private=self._allow_private_hosts)
 
         started = time.perf_counter()
         try:

@@ -59,10 +59,76 @@ denied and saying so leaks nothing.
 
 ## Vulnerabilities found in Phase 11
 
-Four, all in the ORM guard, all fixed. None was remotely exploitable — each
-required a developer to write the query — but the guard exists precisely to
-catch the query nobody meant to write, and it was accepting four shapes that
-scope nothing.
+Six. Four in the ORM tenancy guard, one in the connector host policy, one in
+identifier validation. All fixed.
+
+### SSRF through the connector host — the most serious
+
+**A tenant could aim RealitySync at internal infrastructure and have it connect
+on their behalf, from inside the deployment's network.**
+
+The host of a data source is supplied by whoever configures it, and nothing
+restricted it. `_validate_host` accepted any IP literal unconditionally. Phase 3
+recorded "private-network databases are outside MVP" as *scope*; scope is not a
+control.
+
+Verified exploitable from an ordinary tenant account. The connection test's own
+error codes formed a working port scanner:
+
+| Target | Error | What it revealed |
+| --- | --- | --- |
+| `169.254.169.254:80` | `timeout` | host exists, filtered — the cloud metadata service |
+| `10.0.0.1:5432` | `timeout` | private range reachable |
+| `127.0.0.1:6379` | `unreachable` | **nothing listening on that port** |
+| `postgres:5432` | `tls_failed` | **a PostgreSQL is running here** |
+
+`unreachable` against `tls_failed` is the entire scan: one says the port is
+closed, the other says a database answered. That is enough to map a private
+network from a signup form.
+
+And it gets worse than mapping. The application's own database is reachable by
+hostname from inside the deployment, and its default credentials are published
+in `.env.example`. A tenant who tried them would read **every other tenant's
+data** through a feature working exactly as designed. In this deployment the
+attempt failed only because the local PostgreSQL has no TLS and the connector
+requires it — an accident of the dev setup, not a control, and one that
+disappears in production where managed databases do offer TLS.
+
+Fixed in `app/connectors/network.py`: the host is resolved and every address it
+resolves to must be publicly routable. Loopback, RFC1918, link-local, reserved,
+multicast and unspecified are all refused, in both connectors, at configuration
+time **and** again at connect time — a stored config outlives its validation.
+
+The refusal message deliberately does not echo the resolved address. Reporting
+"127.0.0.1 is private" back would preserve exactly the oracle the check closes.
+
+`CONNECTOR_ALLOW_PRIVATE_HOSTS` exists for self-hosted deployments whose
+databases genuinely sit on a private network. It defaults to **off**, so the
+safe posture is what you get without deciding anything. The dev stack and the
+test suite opt in, because Docker service addresses are private by definition.
+
+Verified after the fix: all four targets now return an identical
+`invalid_configuration`, so nothing distinguishes a closed port from a running
+database. Legitimate sources over TLS 1.3 — both PostgreSQL and MySQL — still
+connect.
+
+### Identifier validation at the API boundary
+
+A stream could be created with a table name containing a backtick. The MySQL
+connector's `quote_identifier` refuses it, so there was no injection — but the
+refusal happened at query time, which meant a stored configuration that failed
+on every subsequent sync and nobody looking at the stream could see why.
+
+`Identifier` now carries a conservative allowlist pattern (`^[A-Za-z0-9_$-]+$`),
+so the boundary refuses what the connector would have refused later. An
+allowlist rather than a denylist: enumerating dangerous characters means losing
+to the first one nobody thought of.
+
+### Four in the ORM guard
+
+None was remotely exploitable — each required a developer to write the query —
+but the guard exists precisely to catch the query nobody meant to write, and it
+was accepting four shapes that scope nothing.
 
 | # | Shape | Why it bypassed | Severity |
 | --- | --- | --- | --- |
@@ -88,7 +154,7 @@ fix was verified not to reject any of the 24 legitimate scoping call sites.
 
 ## What was adversarially tested
 
-34 tests in `tests/test_security_audit.py`. They attack; they do not inspect.
+58 tests in `tests/test_security_audit.py`. They attack; they do not inspect.
 
 **The guard** — every bypass shape above, plus unscoped `SELECT`/`UPDATE`/
 `DELETE` against each of the seven tenant-owned models, aggregates
@@ -114,6 +180,22 @@ resources are re-read afterwards and must still exist.
 
 **Membership** — switching to a foreign organization, and access after a
 membership is revoked.
+
+**SSRF** — every non-public address class refused, the refusal message checked
+for not echoing the resolved address, the escape hatch confirmed explicit, the
+field default confirmed off, and both connectors confirmed to refuse at connect
+time.
+
+**Mass assignment** — a client-supplied `organization_id` and `id` in a create
+request must not be honoured; extra fields are refused outright rather than
+silently dropped.
+
+**Malformed input** — non-UUID path parameters, path traversal, SQL fragments
+and null bytes must produce a validation error rather than a crash, with no
+traceback, SQLAlchemy or psycopg text in the response.
+
+**SQL injection through identifiers** — hostile table names refused both at the
+connector and at the API.
 
 **Credentials** — never in any API response, never in the logs (checked with a
 handler on the root logger, not `caplog`, so the test cannot be silently
@@ -178,6 +260,13 @@ query against a tenant table would be entirely unprotected.
 **`INSERT` is not guarded.** A write with a wrong `organization_id` would not be
 caught by the ORM listener. Routes derive it from the session context, so it is
 not currently reachable, but the layer does not cover it.
+
+**DNS rebinding is not fully closed.** The connector host is validated at
+configuration time and again at connect time, but the address behind a hostname
+could change between the check and the connection. Closing it needs the
+resolved address pinned and handed to the driver instead of the hostname, which
+neither driver exposes cleanly. Two checks raise the cost substantially; they do
+not eliminate it.
 
 **Not tested:** rate-limit bypass under concurrency, session fixation, CSRF
 token entropy, timing attacks on login, TLS configuration of the deployment,

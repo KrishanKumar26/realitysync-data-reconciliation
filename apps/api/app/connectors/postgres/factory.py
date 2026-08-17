@@ -32,4 +32,5 @@ class PostgresConnectorFactory(ConnectorFactory):
             connect_timeout_seconds=settings.connector_connect_timeout_seconds,
             statement_timeout_seconds=settings.connector_statement_timeout_seconds,
             fetch_batch_size=settings.connector_fetch_batch_size,
+            allow_private_hosts=settings.connector_allow_private_hosts,
         )

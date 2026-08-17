@@ -29,6 +29,10 @@ os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000,http://testserver")
 # not depend on the cost — only the time an attacker needs does — so tests run
 # at the cheapest valid setting. The production values live in Settings and are
 # covered by their own assertion in test_security.py.
+# The disposable source databases live on Docker's private network, so the
+# suite opts in exactly as the dev stack does. The refusal itself is covered by
+# its own tests in test_security_audit.py, with the setting off.
+os.environ.setdefault("CONNECTOR_ALLOW_PRIVATE_HOSTS", "true")
 os.environ.setdefault("ARGON2_TIME_COST", "1")
 os.environ.setdefault("ARGON2_MEMORY_COST_KIB", "8")
 os.environ.setdefault("ARGON2_PARALLELISM", "1")
