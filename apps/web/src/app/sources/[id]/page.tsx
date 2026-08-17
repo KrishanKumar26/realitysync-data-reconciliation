@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Inbox,
   Link2,
+  Pencil,
   Play,
   Plug,
   RefreshCw,
@@ -15,6 +16,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { EditSourceForm } from "@/components/sources/edit-source-form";
 import { SchemaExplorer } from "@/components/sources/schema-explorer";
 import {
   SourceStatusBadge,
@@ -99,6 +101,7 @@ export default function SourceDetailPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<SyncRun | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -280,81 +283,110 @@ export default function SourceDetailPage() {
           icon={<Plug />}
           title="Connection"
           description="Credentials are encrypted at rest and are never returned by the API."
+          action={
+            !editing ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil aria-hidden="true" />
+                Edit
+              </Button>
+            ) : undefined
+          }
         />
         <PanelBody>
-          <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              ["Host", `${source.connection.host}:${source.connection.port}`],
-              ["Database", source.connection.database],
-              ["Username", source.connection.username],
-              ["TLS mode", source.connection.ssl_mode],
-              ["Password", "•••••••• stored"],
-              [
-                "Last connected",
-                source.last_connected_at
-                  ? new Date(source.last_connected_at).toLocaleString()
-                  : "Never",
-              ],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {label}
-                </dt>
-                <dd className="tabular mt-1 break-all text-sm text-foreground">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          {editing ? (
+            <EditSourceForm
+              source={source}
+              onCancel={() => setEditing(false)}
+              onSaved={() => {
+                setEditing(false);
+                setTestResult(null);
+                void load();
+              }}
+            />
+          ) : (
+            <>
+              <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  [
+                    "Host",
+                    `${source.connection.host}:${source.connection.port}`,
+                  ],
+                  ["Database", source.connection.database],
+                  ["Username", source.connection.username],
+                  ["TLS mode", source.connection.ssl_mode],
+                  ["Password", "•••••••• stored"],
+                  [
+                    "Last connected",
+                    source.last_connected_at
+                      ? new Date(source.last_connected_at).toLocaleString()
+                      : "Never",
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="tabular mt-1 break-all text-sm text-foreground">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
 
-          {testResult ? (
-            <div
-              role="status"
-              className={
-                testResult.status === "connected"
-                  ? "animate-rise mt-5 rounded-md border border-status-healthy/25 bg-status-healthy/5 px-4 py-3"
-                  : "animate-rise mt-5 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3"
-              }
-            >
-              {testResult.status === "connected" ? (
-                <>
-                  <p className="flex items-center gap-2 text-sm font-medium text-status-healthy">
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                    Connected over {testResult.tls_version ?? "TLS"}
-                  </p>
-                  <p className="tabular mt-1.5 text-xs text-muted-foreground">
-                    {testResult.server_version} · as {testResult.connected_as} ·{" "}
-                    {testResult.latency_ms}ms
-                  </p>
-                  {testResult.warnings.map((warning) => (
-                    <p
-                      key={warning}
-                      className="mt-2 text-xs text-status-degraded"
-                    >
-                      {warning}
-                    </p>
-                  ))}
-                </>
-              ) : (
-                <>
-                  <p className="text-sm font-medium text-status-down">
-                    {testResult.error_message}
-                  </p>
-                  {testResult.remediation ? (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {testResult.remediation}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ) : null}
+              {testResult ? (
+                <div
+                  role="status"
+                  className={
+                    testResult.status === "connected"
+                      ? "animate-rise mt-5 rounded-md border border-status-healthy/25 bg-status-healthy/5 px-4 py-3"
+                      : "animate-rise mt-5 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3"
+                  }
+                >
+                  {testResult.status === "connected" ? (
+                    <>
+                      <p className="flex items-center gap-2 text-sm font-medium text-status-healthy">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        Connected over {testResult.tls_version ?? "TLS"}
+                      </p>
+                      <p className="tabular mt-1.5 text-xs text-muted-foreground">
+                        {testResult.server_version} · as{" "}
+                        {testResult.connected_as} · {testResult.latency_ms}ms
+                      </p>
+                      {testResult.warnings.map((warning) => (
+                        <p
+                          key={warning}
+                          className="mt-2 text-xs text-status-degraded"
+                        >
+                          {warning}
+                        </p>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-status-down">
+                        {testResult.error_message}
+                      </p>
+                      {testResult.remediation ? (
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          {testResult.remediation}
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ) : null}
 
-          {!testResult && source.last_error ? (
-            <p className="mt-4 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3 text-sm text-status-down">
-              {source.last_error}
-            </p>
-          ) : null}
+              {!testResult && source.last_error ? (
+                <p className="mt-4 rounded-md border border-status-down/25 bg-status-down/5 px-4 py-3 text-sm text-status-down">
+                  {source.last_error}
+                </p>
+              ) : null}
+            </>
+          )}
         </PanelBody>
       </Panel>
 

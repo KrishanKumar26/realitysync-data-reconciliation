@@ -425,3 +425,196 @@ async def test_syncing_without_streams_is_refused_clearly(client: AsyncClient) -
 
     assert response.status_code == 409
     assert "no enabled streams" in response.json()["error"]["message"]
+
+
+# --- Updating a source -----------------------------------------------------
+#
+# There was no way to change a source. A provider resetting a password meant
+# deleting the source — and with it every stream, sync run and record read
+# through it — and building it again from scratch.
+
+
+async def test_a_password_can_be_rotated_without_touching_anything_else(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    account = await register(client)
+    source = await create_source(client, account, name="Warehouse")
+
+    before = await db.scalar(
+        select(SourceCredential).where(SourceCredential.data_source_id == uuid.UUID(source["id"]))
+    )
+    assert before is not None
+    old_ciphertext = before.ciphertext
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"connection": {"password": "a-brand-new-password"}},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    # Everything else survived the rotation.
+    assert body["name"] == "Warehouse"
+    assert body["connection"]["host"] == source["connection"]["host"]
+    assert body["connection"]["database"] == source["connection"]["database"]
+
+    await db.refresh(before)
+    assert before.ciphertext != old_ciphertext, "the stored credential must change"
+
+
+async def test_changing_the_target_drops_the_status_back_to_unverified(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """A green badge must not survive being repointed at a different database."""
+    account = await register(client)
+    source = await create_source(client, account)
+
+    stored = await db.scalar(
+        select(DataSource).where(
+            DataSource.organization_id == account.organization_id,
+            DataSource.id == uuid.UUID(source["id"]),
+        )
+    )
+    assert stored is not None
+    stored.status = "connected"
+    stored.last_error = "an old failure"
+    await db.commit()
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"connection": {"host": "db.elsewhere.example.com"}},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+    assert body["status"] == "configured"
+    assert body["connection"]["host"] == "db.elsewhere.example.com"
+    assert body["last_connected_at"] is None
+    assert body["last_error"] is None
+
+
+async def test_renaming_alone_leaves_the_connection_verified(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """A rename is not a reason to claim the connection is unproven again."""
+    account = await register(client)
+    source = await create_source(client, account, name="Old name")
+
+    stored = await db.scalar(
+        select(DataSource).where(
+            DataSource.organization_id == account.organization_id,
+            DataSource.id == uuid.UUID(source["id"]),
+        )
+    )
+    assert stored is not None
+    stored.status = "connected"
+    await db.commit()
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"name": "New name"},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["name"] == "New name"
+    assert body["status"] == "connected"
+
+
+async def test_update_never_returns_the_password(client: AsyncClient) -> None:
+    account = await register(client)
+    source = await create_source(client, account)
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"connection": {"password": "another-secret-value"}},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 200
+    assert "another-secret-value" not in response.text
+    assert "password" not in response.json()["connection"]
+
+
+async def test_update_refuses_a_duplicate_name(client: AsyncClient) -> None:
+    account = await register(client)
+    await create_source(client, account, name="First")
+    second = await create_source(client, account, name="Second")
+
+    response = await client.patch(
+        f"/api/data-sources/{second['id']}",
+        json={"name": "First"},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 409
+
+
+async def test_update_refuses_an_insecure_tls_mode(client: AsyncClient) -> None:
+    """The downgrade blocked at creation must stay blocked at update."""
+    account = await register(client)
+    source = await create_source(client, account)
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"connection": {"ssl_mode": "disable"}},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 422
+
+
+async def test_update_refuses_a_client_supplied_organization(client: AsyncClient) -> None:
+    """Mass assignment: extra fields are refused, not silently dropped."""
+    account = await register(client)
+    source = await create_source(client, account)
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"name": "Renamed", "organization_id": str(uuid.uuid4())},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 422
+
+
+async def test_update_cannot_change_the_source_type(client: AsyncClient) -> None:
+    """Switching engines would invalidate every stream; it is a new source."""
+    account = await register(client)
+    source = await create_source(client, account)
+
+    response = await client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"kind": "mysql"},
+        headers=account.auth_headers(),
+    )
+    assert response.status_code == 422
+
+
+async def test_another_tenant_cannot_update_this_source(
+    client: AsyncClient, anonymous_client: AsyncClient
+) -> None:
+    owner = await register(client)
+    source = await create_source(client, owner, name="Private")
+    intruder = await register(anonymous_client)
+
+    response = await anonymous_client.patch(
+        f"/api/data-sources/{source['id']}",
+        json={"name": "Taken over"},
+        headers=intruder.auth_headers(),
+    )
+    assert response.status_code == 404
+
+    # And nothing changed.
+    unchanged = await client.get(f"/api/data-sources/{source['id']}", headers=owner.auth_headers())
+    assert unchanged.json()["name"] == "Private"
+
+
+async def test_update_requires_authentication(
+    client: AsyncClient, anonymous_client: AsyncClient
+) -> None:
+    owner = await register(client)
+    source = await create_source(client, owner)
+
+    response = await anonymous_client.patch(
+        f"/api/data-sources/{source['id']}", json={"name": "Anonymous rename"}
+    )
+    assert response.status_code == 401

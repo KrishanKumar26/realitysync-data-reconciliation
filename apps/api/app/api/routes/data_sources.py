@@ -51,6 +51,7 @@ from app.schemas.data_source import (
     SyncRunResponse,
     SyncStreamDetail,
     TableResponse,
+    UpdateDataSourceRequest,
     UpdateStreamRequest,
 )
 from app.services import audit
@@ -339,6 +340,109 @@ async def create_data_source(
         data_source_id=str(source.id),
         organization_id=str(context.organization_id),
         kind=payload.kind,
+    )
+    return await _source_response(db, source, organization_id=context.organization_id)
+
+
+@router.patch(
+    "/{source_id}",
+    response_model=DataSourceResponse,
+    summary="Update a data source",
+)
+async def update_data_source(
+    source_id: uuid.UUID,
+    payload: UpdateDataSourceRequest,
+    request: Request,
+    db: DbSession,
+    settings: AppSettings,
+    context: RequireAdmin,
+) -> DataSourceResponse:
+    """Change a source's name or connection details.
+
+    Partial: omitted fields are left alone, and an omitted password keeps the
+    stored one. Rotating a password is therefore a one-field request, which is
+    the common case — a provider reset it, and nothing else about the source
+    changed.
+
+    Like create, this does **not** test the connection. When any connection
+    parameter changes the status drops back to ``configured`` — "credentials
+    stored, never verified" — and `last_connected_at` is cleared, because a
+    successful connection to the *previous* target says nothing about the new
+    one. Leaving a green badge up after someone repoints a source at a
+    different database would be precisely the unverified claim this product
+    exists to eliminate.
+
+    `kind` cannot be changed; see UpdateDataSourceRequest.
+    """
+    await enforce_csrf(request, context.auth, settings)
+
+    source = await _load_source(db, context=context, source_id=source_id)
+
+    if payload.name is not None and payload.name != source.name:
+        clash = await db.scalar(
+            select(DataSource.id).where(
+                DataSource.organization_id == context.organization_id,
+                DataSource.name == payload.name,
+                DataSource.id != source.id,
+            )
+        )
+        if clash is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A data source with that name already exists in this workspace.",
+            )
+        source.name = payload.name
+
+    changed_fields: list[str] = []
+    connection = payload.connection
+
+    if connection is not None:
+        config = dict(source.config)
+        for field in ("host", "port", "database", "username", "ssl_mode"):
+            supplied = getattr(connection, field)
+            if supplied is not None and config.get(field) != supplied:
+                config[field] = supplied
+                changed_fields.append(field)
+
+        if changed_fields:
+            # Reassigned rather than mutated: config is a JSON column, and an
+            # in-place edit of the dict is not seen as a change by the ORM.
+            source.config = config
+
+        if connection.password is not None:
+            await store_credentials(
+                db, data_source=source, payload={"password": connection.password}
+            )
+            changed_fields.append("password")
+
+        if changed_fields:
+            source.status = SourceStatus.CONFIGURED.value
+            source.last_connected_at = None
+            source.last_error = None
+            source.last_error_at = None
+
+    await audit.record(
+        db,
+        action="data_source.updated",
+        organization_id=context.organization_id,
+        actor_user_id=context.user.id,
+        resource_type="data_source",
+        resource_id=source.id,
+        # Field *names* only. "password" appearing here records that a rotation
+        # happened; the value never leaves the encryption boundary.
+        details={
+            "fields": sorted(set(changed_fields)),
+            "renamed": payload.name is not None,
+        },
+        request=request,
+    )
+    await db.commit()
+
+    logger.info(
+        "data_source.updated",
+        data_source_id=str(source.id),
+        organization_id=str(context.organization_id),
+        fields=sorted(set(changed_fields)),
     )
     return await _source_response(db, source, organization_id=context.organization_id)
 

@@ -97,6 +97,66 @@ class CreateDataSourceRequest(BaseModel):
         return stripped
 
 
+class UpdateConnectionInput(BaseModel):
+    """Connection parameters being changed. Every field is optional.
+
+    Separate from `DatabaseConnectionInput` rather than reusing it with
+    defaults, because the two mean different things: there, an absent password
+    is invalid; here, it means "keep the one already stored". Sharing the model
+    would make that distinction depend on a default value, which is how a
+    rotation quietly becomes a blank password.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    host: Annotated[str, Field(min_length=1, max_length=253)] | None = None
+    port: Annotated[int, Field(ge=1, le=65535)] | None = None
+    database: Identifier | None = None
+    username: Identifier | None = None
+    #: Omit to keep the stored password. Never returned by any endpoint, so
+    #: this is the only way to change it — and an empty string is refused
+    #: rather than treated as "clear it".
+    password: Annotated[str, Field(min_length=1, max_length=1024)] | None = None
+    ssl_mode: Literal["require", "verify-ca", "verify-full"] | None = None
+
+    @field_validator("ssl_mode", mode="before")
+    @classmethod
+    def _reject_insecure_modes(cls, value: object) -> object:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.strip().lower() not in ALLOWED_SSL_MODES:
+            raise ValueError(
+                f"SSL mode must be one of {', '.join(ALLOWED_SSL_MODES)}. "
+                "RealitySync requires an encrypted connection to your database."
+            )
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class UpdateDataSourceRequest(BaseModel):
+    """A partial change to a source. Omitted fields are left alone.
+
+    `kind` is deliberately absent. Switching a source between PostgreSQL and
+    MySQL would invalidate every stream configured against it — identifier
+    quoting, schema semantics and the discovery query all differ — so it is a
+    new source, not an edit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    connection: UpdateConnectionInput | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("Name must not be blank")
+        return stripped
+
+
 class CreateStreamRequest(BaseModel):
     """Configure a discovered table for ingestion."""
 

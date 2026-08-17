@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AddSourceForm } from "@/components/sources/add-source-form";
+import { EditSourceForm } from "@/components/sources/edit-source-form";
 import { SchemaExplorer } from "@/components/sources/schema-explorer";
 import { SourceStatusBadge } from "@/components/sources/status-badge";
 import SourcesPage from "@/app/sources/page";
@@ -485,5 +486,129 @@ describe("SchemaExplorer", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Grant USAGE on the schema",
     );
+  });
+});
+
+describe("Edit source", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("never prefills the stored password", async () => {
+    // The API does not return it, so there is nothing to show — and dots in
+    // the box would imply a value that could be submitted unchanged.
+    stubApi(SESSION);
+
+    await renderWithSession(
+      <EditSourceForm
+        source={SOURCE as never}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+
+    const password = await screen.findByLabelText("New password");
+    expect(password).toHaveValue("");
+    expect(screen.getByLabelText("Host")).toHaveValue("db.example.com");
+  });
+
+  it("sends only what actually changed", async () => {
+    // A rename must stay a rename. Resubmitting every field would look like a
+    // connection change to the API, which drops the source back to unverified.
+    const user = userEvent.setup({ delay: null });
+    const { calls } = stubApi({
+      ...SESSION,
+      "/api/data-sources/src-1": { body: { ...SOURCE, name: "Renamed" } },
+    });
+
+    await renderWithSession(
+      <EditSourceForm
+        source={SOURCE as never}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+
+    const name = await screen.findByLabelText("Source name");
+    await user.clear(name);
+    await user.type(name, "Renamed");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const patch = await waitFor(() => {
+      const found = calls.find((call) => call.method === "PATCH");
+      expect(found).toBeDefined();
+      return found!;
+    });
+
+    expect(patch.body).toEqual({ name: "Renamed" });
+  });
+
+  it("sends a new password only when one was typed", async () => {
+    const user = userEvent.setup({ delay: null });
+    const { calls } = stubApi({
+      ...SESSION,
+      "/api/data-sources/src-1": { body: SOURCE },
+    });
+
+    await renderWithSession(
+      <EditSourceForm
+        source={SOURCE as never}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+
+    await user.type(
+      await screen.findByLabelText("New password"),
+      "rotated-secret",
+    );
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    const patch = await waitFor(() => {
+      const found = calls.find((call) => call.method === "PATCH");
+      expect(found).toBeDefined();
+      return found!;
+    });
+
+    expect(patch.body).toEqual({
+      connection: { password: "rotated-secret" },
+    });
+  });
+
+  it("cannot be saved until something changes", async () => {
+    stubApi(SESSION);
+
+    await renderWithSession(
+      <EditSourceForm
+        source={SOURCE as never}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Save changes" }),
+    ).toBeDisabled();
+  });
+
+  it("warns that a connection change makes the source unverified", async () => {
+    const user = userEvent.setup({ delay: null });
+    stubApi(SESSION);
+
+    await renderWithSession(
+      <EditSourceForm
+        source={SOURCE as never}
+        onCancel={() => {}}
+        onSaved={() => {}}
+      />,
+    );
+
+    const host = await screen.findByLabelText("Host");
+    await user.clear(host);
+    await user.type(host, "db.elsewhere.example.com");
+
+    expect(
+      screen.getByText(/marks this source unverified again/i),
+    ).toBeInTheDocument();
   });
 });

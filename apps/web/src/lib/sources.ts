@@ -154,6 +154,27 @@ export interface Observation {
   provenance: Record<string, unknown>;
 }
 
+/**
+ * A partial change to a source.
+ *
+ * Every field is optional, and an omitted `password` keeps the stored one —
+ * which is why this is not `Partial<CreateSourceInput>`: there, an absent
+ * password is invalid; here it means "leave it alone". `kind` is absent
+ * entirely, because switching engines invalidates every configured table.
+ */
+export interface UpdateSourceInput {
+  name?: string;
+  connection?: {
+    host?: string;
+    port?: number;
+    database?: string;
+    username?: string;
+    /** Omit to keep the stored password. Never returned by any endpoint. */
+    password?: string;
+    ssl_mode?: SslMode;
+  };
+}
+
 export interface CreateSourceInput {
   name: string;
   kind: SourceKind;
@@ -192,6 +213,16 @@ export function getSource(id: string): Promise<DataSource> {
 export function createSource(input: CreateSourceInput): Promise<DataSource> {
   return apiFetch<DataSource>(base, {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateSource(
+  id: string,
+  input: UpdateSourceInput,
+): Promise<DataSource> {
+  return apiFetch<DataSource>(`${base}/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(input),
   });
 }
