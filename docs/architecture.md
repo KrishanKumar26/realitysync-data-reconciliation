@@ -161,6 +161,7 @@ the rule exists to prevent.
 | Reality states          | Persisted with evidence and provenance; confidence NULL (Phase 9) |
 | Timeline (bitemporal)   | Implemented — event vs knowledge axis (Phase 5)             |
 | Overview dashboard      | Implemented — real aggregates; confidence panel reports its absence (Phase 6) |
+| Query performance       | Two N+1s fixed, counts measured and regression-tested (Phase 12) |
 | MySQL connector         | Implemented — TLS-only, read-only, second source type (Phase 8) |
 | Scheduled sync          | Implemented — per-stream poll interval, windowed keys (Phase 8) |
 | AI investigation        | Not started — unscheduled                                  |

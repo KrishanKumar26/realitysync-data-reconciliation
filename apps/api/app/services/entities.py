@@ -14,6 +14,7 @@ could untangle which observation belonged to which.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -179,18 +180,61 @@ async def list_entities(
         .limit(limit)
     )
 
-    summaries: list[EntitySummary] = []
-    for entity, mappings in rows:
-        summaries.append(
-            EntitySummary(
-                entity=entity,
-                mapping_count=int(mappings or 0),
-                observation_count=await count_observations(
-                    db, organization_id=organization_id, entity_id=entity.id
-                ),
-            )
+    listed = [(entity, int(mappings or 0)) for entity, mappings in rows]
+    counts = await count_observations_by_entity(
+        db,
+        organization_id=organization_id,
+        entity_ids=[entity.id for entity, _ in listed],
+    )
+
+    return [
+        EntitySummary(
+            entity=entity,
+            mapping_count=mappings,
+            observation_count=counts.get(entity.id, 0),
         )
-    return summaries
+        for entity, mappings in listed
+    ]
+
+
+async def count_observations_by_entity(
+    db: AsyncSession, *, organization_id: uuid.UUID, entity_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Observation counts for many entities, in one query.
+
+    The list endpoint previously called :func:`count_observations` once per
+    entity — measured at N+4 queries for N entities, so a workspace with two
+    hundred entities spent two hundred round trips on a column of integers.
+
+    ``count(DISTINCT observations.id)`` rather than ``count(*)``: a mapping is
+    unique per (stream, external_id), so today the two agree, but a plain count
+    would silently double if that ever stopped being true. The distinct version
+    cannot be wrong.
+
+    Both organization filters are in WHERE rather than the join condition. The
+    tenancy guard cannot inspect a join's ON clause, so a tenant filter placed
+    there is invisible to it — the lesson Phase 5 learned twice.
+    """
+    if not entity_ids:
+        return {}
+
+    rows = await db.execute(
+        select(EntityMapping.entity_id, func.count(func.distinct(Observation.id)))
+        .join(
+            Observation,
+            (Observation.stream_id == EntityMapping.stream_id)
+            & (Observation.external_id == EntityMapping.external_id),
+        )
+        .where(
+            EntityMapping.organization_id == organization_id,
+            Observation.organization_id == organization_id,
+            EntityMapping.entity_id.in_(entity_ids),
+        )
+        .group_by(EntityMapping.entity_id)
+    )
+    # An entity with no matching observation is absent from a grouped result,
+    # and its count is zero rather than missing.
+    return {row[0]: int(row[1]) for row in rows}
 
 
 async def count_observations(

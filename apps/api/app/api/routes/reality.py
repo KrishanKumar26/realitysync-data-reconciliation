@@ -205,7 +205,10 @@ async def create_mapping_route(
     summary="List an entity's mappings",
 )
 async def list_mappings_route(
-    entity_id: uuid.UUID, db: DbSession, context: CurrentOrganization
+    entity_id: uuid.UUID,
+    db: DbSession,
+    context: CurrentOrganization,
+    limit: int = Query(default=500, ge=1, le=1000),
 ) -> list[MappingResponse]:
     await _require_entity(db, context=context, entity_id=entity_id)
     rows = await db.scalars(
@@ -214,7 +217,8 @@ async def list_mappings_route(
             EntityMapping.organization_id == context.organization_id,
             EntityMapping.entity_id == entity_id,
         )
-        .order_by(EntityMapping.created_at)
+        .order_by(EntityMapping.created_at, EntityMapping.id)
+        .limit(limit)
     )
     return [MappingResponse.model_validate(m) for m in rows]
 
@@ -279,7 +283,10 @@ async def recalculate_route(
     summary="Reality states for an entity",
 )
 async def list_reality_states_route(
-    entity_id: uuid.UUID, db: DbSession, context: CurrentOrganization
+    entity_id: uuid.UUID,
+    db: DbSession,
+    context: CurrentOrganization,
+    limit: int = Query(default=500, ge=1, le=1000),
 ) -> list[RealityStateResponse]:
     await _require_entity(db, context=context, entity_id=entity_id)
     rows = await db.scalars(
@@ -289,6 +296,7 @@ async def list_reality_states_route(
             RealityState.entity_id == entity_id,
         )
         .order_by(RealityState.attribute)
+        .limit(limit)
     )
     return [RealityStateResponse.model_validate(s) for s in rows]
 
@@ -303,6 +311,7 @@ async def list_evidence_route(
     attribute: str,
     db: DbSession,
     context: CurrentOrganization,
+    limit: int = Query(default=500, ge=1, le=1000),
 ) -> list[EvidenceResponse]:
     """The provenance trail: every observation considered, and its role."""
     await _require_entity(db, context=context, entity_id=entity_id)
@@ -339,6 +348,7 @@ async def list_evidence_route(
             Observation.ingested_at,
             RealityStateEvidence.observation_id,
         )
+        .limit(limit)
     )
     return [
         EvidenceResponse(

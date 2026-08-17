@@ -13,6 +13,7 @@ factory path.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -145,25 +146,64 @@ def _connection_summary(source: DataSource) -> ConnectionSummary:
     )
 
 
-async def _source_response(
-    db: DbSession, source: DataSource, *, organization_id: uuid.UUID
-) -> DataSourceResponse:
-    stream_count = await db.scalar(
-        select(func.count())
-        .select_from(SourceStream)
+async def _counts_by_source(
+    db: DbSession, *, organization_id: uuid.UUID, source_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, tuple[int, int]]:
+    """Stream and observation counts for many sources, in two queries.
+
+    Two grouped aggregates rather than two per source. The list endpoint
+    previously issued 2N+4 queries for N sources — measured, not assumed — so a
+    workspace with fifty sources spent a hundred round trips producing two
+    integers each. The counts are identical; only the number of trips changed.
+
+    Kept as separate queries rather than one join: counting streams and
+    observations together would multiply the two row sets against each other
+    and inflate both, which is the classic wrong answer that still looks
+    plausible.
+    """
+    if not source_ids:
+        return {}
+
+    stream_rows = await db.execute(
+        select(SourceStream.data_source_id, func.count())
         .where(
             SourceStream.organization_id == organization_id,
-            SourceStream.data_source_id == source.id,
+            SourceStream.data_source_id.in_(source_ids),
         )
+        .group_by(SourceStream.data_source_id)
     )
-    observation_count = await db.scalar(
-        select(func.count())
-        .select_from(Observation)
+    streams: dict[uuid.UUID, int] = {row[0]: int(row[1]) for row in stream_rows}
+
+    observation_rows = await db.execute(
+        select(Observation.source_id, func.count())
         .where(
             Observation.organization_id == organization_id,
-            Observation.source_id == source.id,
+            Observation.source_id.in_(source_ids),
         )
+        .group_by(Observation.source_id)
     )
+    observations: dict[uuid.UUID, int] = {row[0]: int(row[1]) for row in observation_rows}
+    # A source with no streams or no observations is absent from the grouped
+    # result, and its count is zero rather than missing.
+    return {
+        source_id: (streams.get(source_id, 0), observations.get(source_id, 0))
+        for source_id in source_ids
+    }
+
+
+async def _source_response(
+    db: DbSession,
+    source: DataSource,
+    *,
+    organization_id: uuid.UUID,
+    counts: tuple[int, int] | None = None,
+) -> DataSourceResponse:
+    if counts is None:
+        counts = (
+            await _counts_by_source(db, organization_id=organization_id, source_ids=[source.id])
+        )[source.id]
+    stream_count, observation_count = counts
+
     return DataSourceResponse(
         id=source.id,
         name=source.name,
@@ -305,15 +345,27 @@ async def create_data_source(
 
 @router.get("", response_model=list[DataSourceResponse], summary="List data sources")
 async def list_data_sources(
-    db: DbSession, context: CurrentOrganization
+    db: DbSession,
+    context: CurrentOrganization,
+    limit: int = Query(default=500, ge=1, le=1000),
 ) -> list[DataSourceResponse]:
-    sources = await db.scalars(
-        select(DataSource)
-        .where(DataSource.organization_id == context.organization_id)
-        .order_by(DataSource.created_at.desc())
+    sources = list(
+        await db.scalars(
+            select(DataSource)
+            .where(DataSource.organization_id == context.organization_id)
+            .order_by(DataSource.created_at.desc(), DataSource.id)
+            .limit(limit)
+        )
+    )
+    counts = await _counts_by_source(
+        db,
+        organization_id=context.organization_id,
+        source_ids=[source.id for source in sources],
     )
     return [
-        await _source_response(db, source, organization_id=context.organization_id)
+        await _source_response(
+            db, source, organization_id=context.organization_id, counts=counts[source.id]
+        )
         for source in sources
     ]
 
