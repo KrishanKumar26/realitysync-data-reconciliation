@@ -113,12 +113,25 @@ def detect_value_conflict(
         }
 
     winner, runner_up = candidates[0], candidates[1]
-    summary = (
-        f"{len(candidates)} distinct values for '{attribute}'. "
-        f"{winner.value!r} leads {runner_up.value!r} by {margin} percentage points"
-        + (f", diverging by {divergence} units" if divergence is not None else "")
-        + "."
-    )
+    if graded:
+        summary = (
+            f"{len(candidates)} distinct values for '{attribute}'. "
+            f"{winner.value!r} leads {runner_up.value!r} by {margin} percentage points"
+            + (f", diverging by {divergence} units" if divergence is not None else "")
+            + "."
+        )
+    else:
+        # Without the weighting specification every candidate carries the same
+        # weight, so `margin` is zero — and "leads by 0 percentage points" is a
+        # claim of leadership the evidence does not support. Ranking is exactly
+        # the thing that is unavailable, so the summary says so rather than
+        # dressing a zero up as a result.
+        summary = (
+            f"{len(candidates)} distinct values for '{attribute}'"
+            + (f", differing by {divergence} units" if divergence is not None else "")
+            + ". Neither is ranked above the other: the weighting specification "
+            "is unavailable."
+        )
 
     return ConflictFinding(
         conflict_type=ConflictType.VALUE_CONFLICT.value,

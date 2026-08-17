@@ -797,3 +797,30 @@ def test_golden_laptop_001() -> None:
     remove this skip.
     """
     raise AssertionError("Golden scenario not available")
+
+
+def test_ungraded_conflict_summary_claims_no_winner() -> None:
+    """Without the weighting specification, nothing "leads" anything.
+
+    Every candidate carries the same weight while the specification is
+    missing, so the margin is zero — and the summary rendered that as
+    "'42' leads '57' by 0 percentage points", asserting a ranking the evidence
+    does not support and that the engine had just explicitly refused to make.
+    Seen live on the conflicts screen.
+    """
+    result = run(
+        [
+            observation(source=SOURCE_A, value=42),
+            observation(source=SOURCE_B, value=57),
+        ]
+    )
+
+    value_conflicts = [c for c in result.conflicts if c.conflict_type == "value_conflict"]
+    assert value_conflicts, "two distinct values must produce a value conflict"
+    summary = value_conflicts[0].summary
+
+    assert "leads" not in summary
+    assert "percentage points" not in summary
+    assert "Neither is ranked above the other" in summary
+    # The values and the gap are still reported; only the ranking is withheld.
+    assert "2 distinct values" in summary

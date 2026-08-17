@@ -277,15 +277,12 @@ function ConflictCard({
                       }}
                     />
                   </div>
-                  {candidate.sources.length > 0 ? (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {candidate.sources.map((source) => (
-                        <Badge key={String(source)} tone="outline" size="sm">
-                          {String(source)}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
+                  {/* Deliberately no per-source chips. `sources` carries
+                      source *ids*, and the conflict payload has no names to
+                      resolve them to — rendering the raw UUIDs told a reader
+                      nothing they could act on and buried the values, which
+                      are the point of this card. The count above already says
+                      how many sources back each side. */}
                 </li>
               ))}
             </ul>
