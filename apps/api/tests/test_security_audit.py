@@ -1248,3 +1248,61 @@ def test_pooler_rejection_is_explained_rather_than_unexpected() -> None:
     assert "-pooler" in (error.remediation or "")
     # The read-only guarantee is the reason this fails; say so.
     assert "read-only" in (error.remediation or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# Readiness classification
+#
+# "unavailable" for every failure sends whoever is on call to the logs — which
+# is precisely what you cannot reach when the log viewer is also down.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ('password authentication failed for user "app"', "authentication_failed"),
+        ('could not translate host name "db.invalid" to address', "host_unresolvable"),
+        ('connection to server at "::1" failed: Network is unreachable', "unreachable"),
+        ("connection refused", "connection_refused"),
+        ("certificate verify failed", "tls_failed"),
+        ("connection timed out", "timeout"),
+        ('database "nope" does not exist', "missing_database_or_role"),
+        ("something nobody has seen before", "unavailable"),
+    ],
+)
+def test_readiness_classifies_the_failure(message: str, expected: str) -> None:
+    from app.services.health import classify_failure
+
+    assert classify_failure(Exception(message)) == expected
+
+
+def test_readiness_prefers_the_actionable_cause() -> None:
+    """libpq reports every failed attempt; the wrong password is the real one.
+
+    A dual-stack host produces one "network is unreachable" per unroutable
+    address alongside the genuine error. Classifying that as "unreachable"
+    would send someone to debug networking for a wrong password.
+    """
+    from app.services.health import classify_failure
+
+    combined = (
+        "connection is bad: connection to server at "
+        '"2600:1f16::1", port 5432 failed: Network is unreachable\n'
+        "Multiple connection attempts failed. All failures were:\n"
+        '- hostaddr: "13.58.18.166": password authentication failed for user "app"'
+    )
+    assert classify_failure(Exception(combined)) == "authentication_failed"
+
+
+def test_readiness_reason_names_no_host_user_or_credential() -> None:
+    """The vocabulary is closed: no driver text reaches the response."""
+    from app.services.health import _FAILURE_PATTERNS, classify_failure
+
+    allowed = {label for _, label in _FAILURE_PATTERNS} | {"unavailable"}
+    reason = classify_failure(
+        Exception('password authentication failed for user "secret-user" at db.internal')
+    )
+    assert reason in allowed
+    assert "secret-user" not in reason
+    assert "db.internal" not in reason
