@@ -131,7 +131,10 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
                   )}
                 </Field>
 
-                <Field label="Workspace name" error={fieldErrors.organization_name}>
+                <Field
+                  label="Workspace name"
+                  error={fieldErrors.organization_name}
+                >
                   {({ inputId, describedBy }) => (
                     <Input
                       id={inputId}
@@ -141,7 +144,9 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
                       autoComplete="organization"
                       required
                       value={organizationName}
-                      onChange={(event) => setOrganizationName(event.target.value)}
+                      onChange={(event) =>
+                        setOrganizationName(event.target.value)
+                      }
                     />
                   )}
                 </Field>
@@ -166,7 +171,11 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
 
             <Field
               label="Password"
-              hint={isSignUp ? `At least ${PASSWORD_MIN_LENGTH} characters.` : undefined}
+              hint={
+                isSignUp
+                  ? `At least ${PASSWORD_MIN_LENGTH} characters.`
+                  : undefined
+              }
               error={fieldErrors.password}
             >
               {({ inputId, describedBy }) => (

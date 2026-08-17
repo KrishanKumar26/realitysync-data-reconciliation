@@ -36,11 +36,18 @@ export function Stat({
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className={cn("tabular mt-1.5 text-2xl font-semibold tracking-tight", toneClass)}>
+      <dd
+        className={cn(
+          "tabular mt-1.5 text-2xl font-semibold tracking-tight",
+          toneClass,
+        )}
+      >
         {value}
       </dd>
       {hint ? (
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{hint}</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

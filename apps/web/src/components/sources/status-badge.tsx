@@ -4,7 +4,7 @@ import type { SourceStatus, SyncStatus } from "@/lib/sources";
 /**
  * Source status.
  *
- * "Configured" and "Connected" are shown as different things on purpose:
+ * "Not yet tested" and "Connected" are shown as different things on purpose:
  * credentials being stored is not the same as a connection having been proven,
  * and conflating them would tell someone their database is reachable when
  * nothing has ever reached it.

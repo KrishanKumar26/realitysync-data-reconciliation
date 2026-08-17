@@ -122,7 +122,7 @@ async def _load_stream(
         )
     )
     if stream is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found.")
     return stream
 
 
@@ -642,7 +642,7 @@ async def create_stream(
     if duplicate is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="That table is already configured as a stream.",
+            detail="That table has already been added.",
         )
 
     stream = SourceStream(

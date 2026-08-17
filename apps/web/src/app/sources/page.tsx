@@ -110,7 +110,7 @@ export default function SourcesPage() {
           <PanelBody className="p-0">
             <EmptyState
               title="No sources connected"
-              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to begin producing observations."
+              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to start receiving records."
               action={
                 <Button onClick={() => setAdding(true)}>Add source</Button>
               }

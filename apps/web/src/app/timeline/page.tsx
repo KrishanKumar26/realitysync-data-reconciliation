@@ -70,7 +70,9 @@ export default function TimelinePage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not load the timeline.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load the timeline.",
       });
     }
   }, [entityId, axis]);
@@ -115,8 +117,8 @@ export default function TimelinePage() {
         <Panel>
           <PanelBody className="p-0">
             <EmptyState
-              title="No entities yet"
-              description="A timeline is the history of one thing. Create an entity and map a synced table to it, and every observation already ingested will appear here."
+              title="No items yet"
+              description="A timeline is the history of one thing. Create an item and link a synced table to it, and every record already received will appear here."
             />
           </PanelBody>
         </Panel>
@@ -146,11 +148,7 @@ export default function TimelinePage() {
               </select>
             </div>
 
-            <div
-              className="flex gap-1.5"
-              role="group"
-              aria-label="Time axis"
-            >
+            <div className="flex gap-1.5" role="group" aria-label="View by">
               {AXES.map((option) => (
                 <button
                   key={option.value}
@@ -178,7 +176,7 @@ export default function TimelinePage() {
           <Panel>
             <PanelHeader
               title={`${state.timeline.event_count} ${
-                state.timeline.event_count === 1 ? "observation" : "observations"
+                state.timeline.event_count === 1 ? "record" : "records"
               }`}
               description={
                 state.timeline.late_arrival_count > 0
@@ -186,11 +184,13 @@ export default function TimelinePage() {
                   : "Every observation arrived as its fact became true, so both views agree."
               }
             />
-            <PanelBody className={state.timeline.events.length > 0 ? "p-0" : undefined}>
+            <PanelBody
+              className={state.timeline.events.length > 0 ? "p-0" : undefined}
+            >
               {state.timeline.events.length === 0 ? (
                 <EmptyState
                   title="Nothing recorded yet"
-                  description="No observations are mapped to this entity."
+                  description="No data is linked to this item yet."
                   className="py-10"
                 />
               ) : (

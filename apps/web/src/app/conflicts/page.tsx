@@ -69,7 +69,9 @@ export default function ConflictsPage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not load conflicts.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load conflicts.",
       });
     }
   }, [filter]);
@@ -101,7 +103,11 @@ export default function ConflictsPage() {
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+      <div
+        className="flex flex-wrap gap-1.5"
+        role="group"
+        aria-label="Filter by status"
+      >
         {FILTERS.map((option) => (
           <button
             key={option.value}
@@ -152,7 +158,7 @@ export default function ConflictsPage() {
                   ? "No open conflicts"
                   : `No ${filter === "all" ? "" : filter} conflicts`
               }
-              description="A conflict appears when two sources state different values for the same attribute of the same entity. Nothing is shown here until that actually happens."
+              description="A conflict appears when two sources state different values for the same field of the same item. Nothing is shown here until that actually happens."
             />
           </PanelBody>
         </Panel>
@@ -254,9 +260,7 @@ function ConflictCard({
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {candidate.observation_count}{" "}
-                    {candidate.observation_count === 1
-                      ? "observation"
-                      : "observations"}{" "}
+                    {candidate.observation_count === 1 ? "record" : "records"}{" "}
                     from {candidate.sources.length}{" "}
                     {candidate.sources.length === 1 ? "source" : "sources"}
                   </span>

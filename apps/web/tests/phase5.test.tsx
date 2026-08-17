@@ -195,7 +195,7 @@ describe("Timeline page", () => {
 
     await renderWithSession(<TimelinePage />);
 
-    expect(await screen.findByText("No entities yet")).toBeInTheDocument();
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
   });
 
   it("renders both time axes for every observation", async () => {

@@ -88,7 +88,7 @@ function CreateEntityForm({
       setOpen(false);
       onCreated(created);
     } catch (caught) {
-      setError(errorMessage(caught, "Could not create the entity."));
+      setError(errorMessage(caught, "Could not create the item."));
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +97,7 @@ function CreateEntityForm({
   if (!open) {
     return (
       <Button variant="secondary" onClick={() => setOpen(true)}>
-        New entity
+        New item
       </Button>
     );
   }
@@ -109,16 +109,15 @@ function CreateEntityForm({
       noValidate
     >
       <div>
-        <h3 className="text-sm font-medium text-foreground">New entity</h3>
+        <h3 className="text-sm font-medium text-foreground">New item</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          One real thing the sources describe — an asset, a shipment, an
-          account. Reality state is per entity, so this is what the engine
-          reasons about.
+          One real thing your sources describe — a product, a shipment, an
+          account. Values are tracked per item.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Type" hint="How you group these, e.g. sku or asset.">
+        <Field label="Type" hint="How you group these, e.g. product or asset.">
           {({ inputId, describedBy }) => (
             <Input
               id={inputId}
@@ -130,10 +129,7 @@ function CreateEntityForm({
           )}
         </Field>
 
-        <Field
-          label="Natural key"
-          hint="How a person refers to it, e.g. LAPTOP-13."
-        >
+        <Field label="Reference ID" hint="How you refer to it, e.g. LAPTOP-13.">
           {({ inputId, describedBy }) => (
             <Input
               id={inputId}
@@ -155,7 +151,7 @@ function CreateEntityForm({
 
       <div className="flex items-center gap-2.5">
         <Button type="submit" disabled={submitting || !naturalKey.trim()}>
-          {submitting ? "Creating…" : "Create entity"}
+          {submitting ? "Creating…" : "Create item"}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
@@ -238,7 +234,7 @@ function MapRowForm({
       setOpen(false);
       onMapped();
     } catch (caught) {
-      setError(errorMessage(caught, "Could not map that row."));
+      setError(errorMessage(caught, "Could not link that row."));
     } finally {
       setSubmitting(false);
     }
@@ -249,17 +245,17 @@ function MapRowForm({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-medium text-foreground">
-            Source rows for {entity.natural_key}
+            Linked data for {entity.natural_key}
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {mappings.length === 0
-              ? "None yet. Map at least two sources to see whether they agree."
-              : `${mappings.length} mapped. The engine reads every one of them.`}
+              ? "None yet. Link at least two sources to see whether they agree."
+              : `${mappings.length} linked. All of them are compared.`}
           </p>
         </div>
         {!open ? (
           <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
-            Map a source row
+            Link a table row
           </Button>
         ) : null}
       </div>
@@ -321,8 +317,8 @@ function MapRowForm({
 
           {externalIds.length === 0 && sourceId ? (
             <p className="text-xs text-muted-foreground">
-              This source has no observations yet. Sync it first — there is
-              nothing to map until it has read some rows.
+              This source has no data yet. Sync it first — there is nothing to
+              link until it has read some rows.
             </p>
           ) : null}
 
@@ -338,7 +334,7 @@ function MapRowForm({
               size="sm"
               disabled={submitting || !streamId || !externalId}
             >
-              {submitting ? "Mapping…" : "Map row"}
+              {submitting ? "Linking…" : "Link row"}
             </Button>
             <Button
               type="button"

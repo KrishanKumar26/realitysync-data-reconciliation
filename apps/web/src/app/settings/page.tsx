@@ -36,7 +36,9 @@ export default function SettingsPage() {
     setMembers(null);
     setError(null);
     try {
-      setMembers(await apiFetch<Member[]>("/api/organizations/current/members"));
+      setMembers(
+        await apiFetch<Member[]>("/api/organizations/current/members"),
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Could not load members.",
@@ -108,7 +110,9 @@ export default function SettingsPage() {
           title="Members"
           description="People with access to this workspace."
         />
-        <PanelBody className={members && members.length > 0 ? "p-0" : undefined}>
+        <PanelBody
+          className={members && members.length > 0 ? "p-0" : undefined}
+        >
           {error ? (
             <ErrorState
               title="Could not load members"

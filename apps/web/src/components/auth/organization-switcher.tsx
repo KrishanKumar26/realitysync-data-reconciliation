@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
  * browser never receives another tenant's data to filter.
  */
 export function OrganizationSwitcher() {
-  const { organizations, activeOrganization, switchOrganization } = useSession();
+  const { organizations, activeOrganization, switchOrganization } =
+    useSession();
   const [open, setOpen] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +145,9 @@ export function OrganizationSwitcher() {
                   </span>
                 </span>
                 {pendingId === organization.id ? (
-                  <span className="text-xs text-muted-foreground">Switching…</span>
+                  <span className="text-xs text-muted-foreground">
+                    Switching…
+                  </span>
                 ) : active ? (
                   <svg
                     viewBox="0 0 16 16"

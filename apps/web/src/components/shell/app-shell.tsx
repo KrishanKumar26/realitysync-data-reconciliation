@@ -6,7 +6,10 @@ import { useState, type ReactNode } from "react";
 
 import { OrganizationSwitcher } from "@/components/auth/organization-switcher";
 import { useSession } from "@/components/auth/session-provider";
-import { ApiStatusIndicator, useApiStatus } from "@/components/shell/api-status";
+import {
+  ApiStatusIndicator,
+  useApiStatus,
+} from "@/components/shell/api-status";
 import { NAV_ITEMS } from "@/components/shell/nav";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +48,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="h-2.5 w-2.5 rounded-full bg-accent-cyan"
               aria-hidden="true"
             />
-            <span className="text-sm font-semibold tracking-tight">RealitySync</span>
+            <span className="text-sm font-semibold tracking-tight">
+              RealitySync
+            </span>
           </div>
 
           <div className="border-b border-border px-2.5 py-2.5">
@@ -135,7 +140,10 @@ function UserMenu() {
         <p className="truncate text-sm font-medium text-foreground">
           {user.full_name}
         </p>
-        <p className="truncate text-xs text-muted-foreground" title={user.email}>
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={user.email}
+        >
           {user.email}
         </p>
       </div>

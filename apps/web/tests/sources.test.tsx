@@ -345,7 +345,7 @@ describe("SchemaExplorer", () => {
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
 
-    expect(screen.getByText("Schema not read yet")).toBeInTheDocument();
+    expect(screen.getByText("Tables not loaded yet")).toBeInTheDocument();
     expect(calls.some((c) => c.url.includes("discover-schema"))).toBe(false);
   });
 
@@ -358,7 +358,7 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
 
     expect(await screen.findByText(/approx\. 1,200 rows/)).toBeInTheDocument();
   });
@@ -370,8 +370,8 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
-    await user.click(await screen.findByRole("button", { name: "Configure" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
 
     expect(
       screen.getByText(/What does this table's timestamp mean\?/),
@@ -394,10 +394,10 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
-    await user.click(await screen.findByRole("button", { name: "Configure" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
+    await user.click(await screen.findByRole("button", { name: "Add" }));
     await user.click(screen.getByRole("radio", { name: /Observed/ }));
-    await user.click(screen.getByRole("button", { name: "Configure stream" }));
+    await user.click(screen.getByRole("button", { name: "Add table" }));
 
     await waitFor(() => {
       const request = calls.find((call) => call.url.endsWith("/streams"));
@@ -434,11 +434,11 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
 
     expect(await screen.findByText("No primary key")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Configure" }),
+      screen.queryByRole("button", { name: "Add" }),
     ).not.toBeInTheDocument();
   });
 
@@ -456,7 +456,7 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
 
     expect(await screen.findByText(/billing, hr/)).toBeInTheDocument();
   });
@@ -480,7 +480,7 @@ describe("SchemaExplorer", () => {
     await renderWithSession(
       <SchemaExplorer sourceId="src-1" onStreamCreated={() => {}} />,
     );
-    await user.click(screen.getByRole("button", { name: "Discover schema" }));
+    await user.click(screen.getByRole("button", { name: "Find tables" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Grant USAGE on the schema",

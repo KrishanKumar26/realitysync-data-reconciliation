@@ -289,13 +289,13 @@ export default function SourceDetailPage() {
       {/* --- Streams --- */}
       <Panel>
         <PanelHeader
-          title="Streams"
-          description="Tables configured for ingestion."
+          title="Tables"
+          description="Tables RealitySync reads from."
         />
         <PanelBody className={streams.length > 0 ? "p-0" : undefined}>
           {streams.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No tables configured yet. Discover the schema below to choose one.
+              No tables added yet. Find tables below to choose one.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -310,9 +310,9 @@ export default function SourceDetailPage() {
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       key: {stream.primary_key_columns.join(", ")} · time:{" "}
-                      {stream.event_time_column ?? "ingestion"} (
+                      {stream.event_time_column ?? "when read"} (
                       {stream.event_time_semantics}) ·{" "}
-                      {stream.observation_count.toLocaleString()} observations ·{" "}
+                      {stream.observation_count.toLocaleString()} records ·{" "}
                       {/* The poll interval is honoured by the scheduler, so it
                           has to be visible: an operator cannot otherwise tell
                           how fresh this stream is meant to be. A disabled
@@ -340,8 +340,8 @@ export default function SourceDetailPage() {
       {/* --- Schema --- */}
       <Panel>
         <PanelHeader
-          title="Schema"
-          description="Read from the database catalog. No table data is read."
+          title="Available tables"
+          description="Read from the database's own catalogue. No table data is read."
         />
         <PanelBody className="p-0">
           <SchemaExplorer
@@ -355,7 +355,7 @@ export default function SourceDetailPage() {
       <Panel>
         <PanelHeader
           title="Sync"
-          description="Reads configured streams and appends observations."
+          description="Reads the tables above and adds new records."
           action={
             <Button
               size="sm"
@@ -369,7 +369,7 @@ export default function SourceDetailPage() {
         <PanelBody className={runs.length > 0 ? "p-0" : undefined}>
           {enabledStreams.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Configure and enable at least one stream before syncing.
+              Add and enable at least one table before syncing.
             </p>
           ) : null}
 
@@ -386,9 +386,8 @@ export default function SourceDetailPage() {
             >
               <p className="text-sm text-foreground">
                 {lastRun.rows_created} new{" "}
-                {lastRun.rows_created === 1 ? "observation" : "observations"}{" "}
-                from {lastRun.rows_seen}{" "}
-                {lastRun.rows_seen === 1 ? "row" : "rows"}
+                {lastRun.rows_created === 1 ? "record" : "records"} from{" "}
+                {lastRun.rows_seen} {lastRun.rows_seen === 1 ? "row" : "rows"}
                 {lastRun.rows_skipped > 0
                   ? ` · ${lastRun.rows_skipped} already recorded`
                   : ""}
@@ -435,14 +434,14 @@ export default function SourceDetailPage() {
       {/* --- Observations --- */}
       <Panel>
         <PanelHeader
-          title="Observations"
-          description="Immutable records of what this source stated, most recently ingested first."
+          title="Records"
+          description="What this source stated, most recently received first. These are never edited."
         />
         <PanelBody className={observations.length > 0 ? "p-0" : undefined}>
           {observations.length === 0 ? (
             <EmptyState
-              title="No observations yet"
-              description="Run a sync to read rows from the source. Nothing is shown here until real data has been ingested."
+              title="No records yet"
+              description="Run a sync to read rows from the source. Nothing is shown here until real data has been read."
               className="py-10"
             />
           ) : (
@@ -473,7 +472,7 @@ export default function SourceDetailPage() {
       <Panel>
         <PanelHeader
           title="Remove source"
-          description="Deletes the source, its credentials, streams and observations. This cannot be undone."
+          description="Deletes the source, its credentials, tables and records. This cannot be undone."
           action={
             <Button
               variant="secondary"

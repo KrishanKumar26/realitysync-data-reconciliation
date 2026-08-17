@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s · RealitySync",
   },
   description:
-    "RealitySync reconciles observations from multiple data sources into a continuously verified reality state.",
+    "RealitySync compares what your data sources say and shows you what is actually true.",
 };
 
 export const viewport: Viewport = {

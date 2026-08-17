@@ -40,7 +40,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
             title="Cannot reach RealitySync"
             description={`${status.message} The API may still be starting. Your session has not ended.`}
             action={
-              <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void refresh()}
+              >
                 Try again
               </Button>
             }
@@ -72,7 +76,9 @@ function SessionLoading() {
             className="h-2.5 w-2.5 rounded-full bg-accent-cyan"
             aria-hidden="true"
           />
-          <span className="text-sm font-semibold tracking-tight">RealitySync</span>
+          <span className="text-sm font-semibold tracking-tight">
+            RealitySync
+          </span>
         </div>
         <div className="space-y-2 px-3 py-4" aria-hidden="true">
           {[...Array(6)].map((_, index) => (

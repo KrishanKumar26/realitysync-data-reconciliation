@@ -18,7 +18,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/",
     label: "Overview",
-    description: "Reality confidence, source health and recent activity",
+    description: "Confidence, source health and recent activity",
     phase: 6,
   },
   {
@@ -29,8 +29,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     href: "/reality",
-    label: "Reality",
-    description: "Entities, current state and evidence",
+    // The route keeps its original path: changing a URL breaks every existing
+    // link and bookmark, and the label is the part a person actually reads.
+    label: "Current State",
+    description: "Items, their current values and the evidence behind them",
     phase: 4,
   },
   {
@@ -42,7 +44,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/timeline",
     label: "Timeline",
-    description: "Observations, events and state changes over time",
+    description: "Records, events and changes over time",
     phase: 5,
   },
   {

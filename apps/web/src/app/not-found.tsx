@@ -12,7 +12,10 @@ export default function NotFound() {
           title="Page not found"
           description="That destination does not exist in this workspace."
           action={
-            <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <Link
+              href="/"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
               Back to overview
             </Link>
           }

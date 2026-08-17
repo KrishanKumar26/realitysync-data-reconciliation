@@ -28,7 +28,10 @@ export function PhasePlaceholder({
       <Panel>
         <PanelHeader title={title} />
         <PanelBody className="p-0">
-          <EmptyState title={`Available in Phase ${phase}`} description={detail} />
+          <EmptyState
+            title={`Available in Phase ${phase}`}
+            description={detail}
+          />
         </PanelBody>
       </Panel>
     </div>

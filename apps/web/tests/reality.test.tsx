@@ -131,7 +131,7 @@ describe("Reality page", () => {
     await renderWithSession(<RealityPage />);
 
     expect(screen.getByTestId("reality-loading")).toBeInTheDocument();
-    expect(screen.queryByText("No entities yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No items yet")).not.toBeInTheDocument();
 
     resolve();
   });
@@ -141,7 +141,7 @@ describe("Reality page", () => {
 
     await renderWithSession(<RealityPage />);
 
-    expect(await screen.findByText("No entities yet")).toBeInTheDocument();
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
   });
 
   it("surfaces a load failure instead of showing an empty workspace", async () => {
@@ -160,7 +160,7 @@ describe("Reality page", () => {
     await renderWithSession(<RealityPage />);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.queryByText("No entities yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No items yet")).not.toBeInTheDocument();
   });
 
   it("never renders a confidence number while the specification is unavailable", async () => {
@@ -305,7 +305,7 @@ describe("Reality page", () => {
 
     // "blocked" must not read as "nothing happened" — states were written.
     expect(
-      await screen.findByText("States written without confidence scores"),
+      await screen.findByText("Values recorded without confidence scores"),
     ).toBeInTheDocument();
     expect(screen.getByText(/Blocked on: freshness/)).toBeInTheDocument();
   });
@@ -354,9 +354,9 @@ describe("Entity setup", () => {
 
     await renderWithSession(<RealityPage />);
 
-    expect(await screen.findByText("No entities yet")).toBeInTheDocument();
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "New entity" }),
+      screen.getByRole("button", { name: "New item" }),
     ).toBeInTheDocument();
   });
 
@@ -368,10 +368,10 @@ describe("Entity setup", () => {
     });
 
     await renderWithSession(<RealityPage />);
-    await user.click(await screen.findByRole("button", { name: "New entity" }));
+    await user.click(await screen.findByRole("button", { name: "New item" }));
 
-    await user.type(screen.getByLabelText("Natural key"), "LAPTOP-13");
-    await user.click(screen.getByRole("button", { name: "Create entity" }));
+    await user.type(screen.getByLabelText("Reference ID"), "LAPTOP-13");
+    await user.click(screen.getByRole("button", { name: "Create item" }));
 
     await waitFor(() => {
       const request = calls.find(
@@ -398,7 +398,7 @@ describe("Entity setup", () => {
     // Two, not one: a single source cannot disagree with anything, so the
     // count is the thing worth saying out loud.
     expect(
-      await screen.findByText(/Map at least two sources/),
+      await screen.findByText(/Link at least two sources/),
     ).toBeInTheDocument();
   });
 
@@ -430,7 +430,7 @@ describe("Entity setup", () => {
     await openEntity();
 
     await user.click(
-      await screen.findByRole("button", { name: "Map a source row" }),
+      await screen.findByRole("button", { name: "Link a table row" }),
     );
 
     // Deduplicated: the same row observed twice is still one row.
@@ -461,7 +461,7 @@ describe("Entity setup", () => {
     await renderWithSession(<RealityPage />);
     await openEntity();
     await user.click(
-      await screen.findByRole("button", { name: "Map a source row" }),
+      await screen.findByRole("button", { name: "Link a table row" }),
     );
 
     expect(await screen.findByText(/Sync it first/)).toBeInTheDocument();

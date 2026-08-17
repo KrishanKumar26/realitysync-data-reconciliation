@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 
-export type StatusTone = "healthy" | "degraded" | "down" | "unknown" | "pending";
+export type StatusTone =
+  "healthy" | "degraded" | "down" | "unknown" | "pending";
 
 const TONE_CLASS: Record<StatusTone, string> = {
   healthy: "bg-status-healthy",
@@ -39,7 +40,10 @@ export function StatusDot({
           />
         ) : null}
         <span
-          className={cn("relative inline-flex h-2 w-2 rounded-full", TONE_CLASS[tone])}
+          className={cn(
+            "relative inline-flex h-2 w-2 rounded-full",
+            TONE_CLASS[tone],
+          )}
         />
       </span>
       <span className="text-sm text-muted-foreground">{label}</span>

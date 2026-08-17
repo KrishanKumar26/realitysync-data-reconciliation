@@ -222,7 +222,7 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
-    expect(await screen.findByText("Reality confidence")).toBeInTheDocument();
+    expect(await screen.findByText("Confidence")).toBeInTheDocument();
     expect(screen.getByText("Not available.")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
@@ -380,7 +380,7 @@ describe("Reality page", () => {
 
     await renderWithSession(<RealityPage />);
 
-    expect(await screen.findByText("No entities yet")).toBeInTheDocument();
+    expect(await screen.findByText("No items yet")).toBeInTheDocument();
   });
 
   it("shows an empty state rather than implying there is nothing to say", async () => {
@@ -392,7 +392,7 @@ describe("Reality page", () => {
 
     await renderWithSession(<RealityPage />);
 
-    expect(await screen.findByText("No reality states")).toBeInTheDocument();
+    expect(await screen.findByText("No values yet")).toBeInTheDocument();
   });
 
   it("reports a blocked recalculation with what is missing", async () => {
@@ -431,7 +431,7 @@ describe("Reality page", () => {
     // nothing when scoring was blocked. States are written now — only the score
     // is withheld — so a heading saying nothing was produced would be false.
     expect(
-      await screen.findByText("States written without confidence scores"),
+      await screen.findByText("Values recorded without confidence scores"),
     ).toBeInTheDocument();
     expect(screen.getByText(/Blocked on: freshness/)).toBeInTheDocument();
     // Detection still ran — that is the useful half.

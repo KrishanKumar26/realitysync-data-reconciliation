@@ -49,7 +49,9 @@ export function SchemaExplorer({
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not read the schema.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load the tables.",
       });
     }
   }
@@ -57,9 +59,9 @@ export function SchemaExplorer({
   if (state.kind === "idle") {
     return (
       <EmptyState
-        title="Schema not read yet"
-        description="RealitySync will read table and column metadata from the database's catalog. No table data is read."
-        action={<Button onClick={() => void discover()}>Discover schema</Button>}
+        title="Tables not loaded yet"
+        description="RealitySync will read table and column names from the database's catalogue. No table data is read."
+        action={<Button onClick={() => void discover()}>Find tables</Button>}
       />
     );
   }
@@ -77,7 +79,7 @@ export function SchemaExplorer({
   if (state.kind === "error") {
     return (
       <ErrorState
-        title="Could not read the schema"
+        title="Could not load the tables"
         description={state.message}
         action={
           <Button variant="secondary" onClick={() => void discover()}>
@@ -116,7 +118,7 @@ export function SchemaExplorer({
         }
         action={
           <Button variant="secondary" onClick={() => void discover()}>
-            Re-read schema
+            Refresh list
           </Button>
         }
       />
@@ -133,7 +135,7 @@ export function SchemaExplorer({
           {discovery.schemas.length === 1 ? "schema" : "schemas"}
         </p>
         <Button variant="secondary" size="sm" onClick={() => void discover()}>
-          Re-read schema
+          Refresh list
         </Button>
       </div>
 
@@ -167,18 +169,22 @@ export function SchemaExplorer({
 
               {table.configured ? (
                 <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
-                  Configured
+                  Added
                 </span>
               ) : table.primary_key_columns.length === 0 ? (
                 <span
                   className="shrink-0 text-xs text-muted-foreground"
-                  title="Without a primary key there is no stable identity for a row."
+                  title="Without a primary key a row has no stable identity."
                 >
                   No primary key
                 </span>
               ) : (
-                <Button size="sm" variant="secondary" onClick={() => setSelected(table)}>
-                  Configure
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSelected(table)}
+                >
+                  Add
                 </Button>
               )}
             </div>
@@ -197,17 +203,17 @@ const SEMANTICS: {
   {
     value: "observed",
     label: "Observed",
-    description: "The column records when the fact was true in the world.",
+    description: "When the fact was actually true.",
   },
   {
     value: "recorded",
     label: "Recorded",
-    description: "The column records when the source system wrote the row.",
+    description: "When the source system wrote the row.",
   },
   {
     value: "ingest_fallback",
     label: "No time column",
-    description: "Use the time RealitySync read the row. Ordering is by ingestion only.",
+    description: "Use the time RealitySync read the row.",
   },
 ];
 
@@ -256,7 +262,9 @@ function StreamConfigForm({
       onCreated();
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : "Could not configure the stream.",
+        caught instanceof ApiError
+          ? caught.message
+          : "Could not configure the stream.",
       );
       setSubmitting(false);
     }
@@ -266,11 +274,13 @@ function StreamConfigForm({
     <div className="space-y-5 px-5 py-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">
-          Configure <span className="tabular">{table.qualified_name}</span>
+          Add <span className="tabular">{table.qualified_name}</span>
         </h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Identity comes from the primary key:{" "}
-          <span className="tabular">{table.primary_key_columns.join(", ")}</span>
+          Rows are identified by:{" "}
+          <span className="tabular">
+            {table.primary_key_columns.join(", ")}
+          </span>
         </p>
       </div>
 
@@ -281,7 +291,8 @@ function StreamConfigForm({
         <div className="space-y-1.5 pt-1">
           {SEMANTICS.map((option) => {
             const unavailable =
-              option.value !== "ingest_fallback" && table.temporal_columns.length === 0;
+              option.value !== "ingest_fallback" &&
+              table.temporal_columns.length === 0;
             return (
               <label
                 key={option.value}
@@ -302,7 +313,9 @@ function StreamConfigForm({
                   className="mt-0.5 accent-[var(--color-accent-cyan)]"
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm text-foreground">{option.label}</span>
+                  <span className="block text-sm text-foreground">
+                    {option.label}
+                  </span>
                   <span className="block text-xs text-muted-foreground">
                     {option.description}
                   </span>
@@ -319,7 +332,7 @@ function StreamConfigForm({
             htmlFor="event-time-column"
             className="block text-sm font-medium text-foreground"
           >
-            Event-time column
+            Date column
           </label>
           <select
             id="event-time-column"
@@ -347,7 +360,7 @@ function StreamConfigForm({
           onClick={() => void submit()}
           disabled={submitting || (usesColumn && !eventTimeColumn)}
         >
-          {submitting ? "Configuring…" : "Configure stream"}
+          {submitting ? "Adding…" : "Add table"}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={submitting}>
           Back

@@ -74,7 +74,7 @@ async def _require_entity(
     """
     entity = await get_entity(db, organization_id=context.organization_id, entity_id=entity_id)
     if entity is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entity not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found.")
     return entity
 
 
@@ -107,7 +107,7 @@ async def create_entity_route(
     except DuplicateEntityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An entity with that type and key already exists in this workspace.",
+            detail="An item with that type and reference ID already exists in this workspace.",
         ) from None
 
     await audit.record(
@@ -187,12 +187,12 @@ async def create_mapping_route(
         )
     except StreamNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Stream not found."
+            status_code=status.HTTP_404_NOT_FOUND, detail="Table not found."
         ) from None
     except DuplicateMappingError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="That source row is already mapped to an entity.",
+            detail="That source row is already linked to an item.",
         ) from None
 
     await db.commit()
@@ -325,7 +325,7 @@ async def list_evidence_route(
     )
     if state is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No reality state for that attribute."
+            status_code=status.HTTP_404_NOT_FOUND, detail="No current value for that field."
         )
 
     # Joined to the observation for provenance. Both organization filters live
@@ -394,12 +394,12 @@ async def unscored_attribute_route(
     if outcome is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No observations state that attribute for this entity.",
+            detail="No source has stated that field for this item.",
         )
     if outcome.is_scored:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This attribute is fully scored; read it from the reality endpoint.",
+            detail="This field is fully scored; read it from the current-state endpoint.",
         )
 
     payload: dict[str, Any] = detection_as_dict(outcome)

@@ -1,4 +1,9 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,25 +16,26 @@ import { cn } from "@/lib/utils";
  * precisely when they most need to know what the field is.
  */
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  function Input({ className, ...props }, ref) {
-    return (
-      <input
-        ref={ref}
-        className={cn(
-          "h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm",
-          "text-foreground placeholder:text-muted-foreground",
-          "transition-[border-color,box-shadow] duration-150",
-          "focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35",
-          "disabled:cursor-not-allowed disabled:opacity-60",
-          "aria-[invalid=true]:border-status-down aria-[invalid=true]:ring-status-down/25",
-          className,
-        )}
-        {...props}
-      />
-    );
-  },
-);
+export const Input = forwardRef<
+  HTMLInputElement,
+  InputHTMLAttributes<HTMLInputElement>
+>(function Input({ className, ...props }, ref) {
+  return (
+    <input
+      ref={ref}
+      className={cn(
+        "h-10 w-full rounded-md border border-border-strong bg-background px-3 text-sm",
+        "text-foreground placeholder:text-muted-foreground",
+        "transition-[border-color,box-shadow] duration-150",
+        "focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35",
+        "disabled:cursor-not-allowed disabled:opacity-60",
+        "aria-[invalid=true]:border-status-down aria-[invalid=true]:ring-status-down/25",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 
 export function Field({
   label,
@@ -42,7 +48,10 @@ export function Field({
   hint?: string;
   error?: string | null;
   /** Receives the generated ids so the control stays accessible. */
-  children: (ids: { inputId: string; describedBy: string | undefined }) => ReactNode;
+  children: (ids: {
+    inputId: string;
+    describedBy: string | undefined;
+  }) => ReactNode;
   className?: string;
 }) {
   const inputId = useId();

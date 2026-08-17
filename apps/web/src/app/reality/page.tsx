@@ -59,7 +59,7 @@ export default function RealityPage() {
         message:
           error instanceof ApiError
             ? error.message
-            : "Could not load reality states.",
+            : "Could not load the current values.",
       });
     }
   }, [entityId]);
@@ -91,9 +91,9 @@ export default function RealityPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">Reality</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Current State</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          Entities, current state and the evidence behind it.
+          Items, their current values and the evidence behind them.
         </p>
       </header>
 
@@ -108,7 +108,7 @@ export default function RealityPage() {
         <Panel>
           <PanelBody className="p-0">
             <ErrorState
-              title="Could not load reality"
+              title="Could not load the current values"
               description={state.message}
               action={
                 <Button variant="secondary" onClick={() => void load()}>
@@ -124,8 +124,8 @@ export default function RealityPage() {
         <Panel>
           <PanelBody className="p-0">
             <EmptyState
-              title="No entities yet"
-              description="A reality state is what RealitySync believes about one thing. Create an entity and map a synced table to it, and the engine has something to reason about."
+              title="No items yet"
+              description="An item is one real thing your sources describe — a product, a shipment, an account. Create one and link a synced table to it, and RealitySync can start comparing what each source says."
               action={
                 <EntitySetup
                   entity={null}
@@ -182,19 +182,17 @@ export default function RealityPage() {
           {lastRun?.blocked ? (
             <Panel>
               <PanelHeader
-                title="States written without confidence scores"
-                description="The engine ran and reported precisely what is missing."
+                title="Values recorded without confidence scores"
+                description="RealitySync ran and reported exactly what is missing."
               />
               <PanelBody className="space-y-4">
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  The Reality Engine read{" "}
+                  RealitySync read{" "}
                   <span className="tabular text-foreground">
                     {lastRun.attributes_considered}
                   </span>{" "}
-                  {lastRun.attributes_considered === 1
-                    ? "attribute"
-                    : "attributes"}{" "}
-                  and wrote{" "}
+                  {lastRun.attributes_considered === 1 ? "field" : "fields"} and
+                  wrote{" "}
                   <span className="tabular text-foreground">
                     {lastRun.states_written}
                   </span>{" "}
@@ -258,14 +256,14 @@ export default function RealityPage() {
 
           <Panel>
             <PanelHeader
-              title="Reality states"
-              description="One per attribute, with its evidence and the reason it was selected."
+              title="Current values"
+              description="One per field, with its evidence and the reason it was chosen."
             />
             <PanelBody className={state.states.length > 0 ? "p-0" : undefined}>
               {state.states.length === 0 ? (
                 <EmptyState
-                  title="No reality states"
-                  description="Run a recalculation to see what the engine can establish. While the confidence specification is unavailable states are still written, with no score and the reason stated."
+                  title="No values yet"
+                  description="Run a recalculation to see what can be established. While the confidence formula is unavailable, values are still recorded — with no score, and the reason stated."
                   className="py-10"
                 />
               ) : (

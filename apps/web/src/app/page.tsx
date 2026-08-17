@@ -10,7 +10,11 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ApiError } from "@/lib/api";
-import { fetchDashboard, type ActivityItem, type Dashboard } from "@/lib/dashboard";
+import {
+  fetchDashboard,
+  type ActivityItem,
+  type Dashboard,
+} from "@/lib/dashboard";
 import { cn } from "@/lib/utils";
 
 type State =
@@ -41,7 +45,9 @@ export default function OverviewPage() {
       setState({
         kind: "error",
         message:
-          error instanceof ApiError ? error.message : "Could not load the overview.",
+          error instanceof ApiError
+            ? error.message
+            : "Could not load the overview.",
       });
     }
   }, []);
@@ -95,7 +101,7 @@ export default function OverviewPage() {
           <PanelBody className="p-0">
             <EmptyState
               title="Nothing connected yet"
-              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to begin producing observations — everything on this page is derived from them."
+              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to start receiving records — everything on this page is derived from them."
               action={
                 <Link href="/sources">
                   <Button>Connect a source</Button>
@@ -112,7 +118,10 @@ export default function OverviewPage() {
           <SourceHealthPanel dashboard={state.dashboard} />
           <IngestionPanel dashboard={state.dashboard} />
           <ConflictPanel dashboard={state.dashboard} />
-          <ActivityPanel activity={state.dashboard.activity} window={state.dashboard.window_days} />
+          <ActivityPanel
+            activity={state.dashboard.activity}
+            window={state.dashboard.window_days}
+          />
         </>
       ) : null}
     </div>
@@ -132,10 +141,7 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
   if (!confidence.available) {
     return (
       <Panel>
-        <PanelHeader
-          title="Reality confidence"
-          description="Not available."
-        />
+        <PanelHeader title="Confidence" description="Not available." />
         <PanelBody className="space-y-4">
           <p className="text-sm leading-relaxed text-muted-foreground">
             {confidence.blocked_reason}
@@ -143,23 +149,28 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
 
           <StatGrid columns={3}>
             <Stat
-              label="Confidence"
+              label="Average"
               value="—"
               tone="muted"
               hint="No score is shown rather than an invented one."
             />
-            <Stat label="Scored states" value={confidence.scored_state_count} tone="muted" />
+            <Stat
+              label="Scored fields"
+              value={confidence.scored_state_count}
+              tone="muted"
+            />
             <Stat
               label="Awaiting a score"
               value={confidence.unscored_attribute_count.toLocaleString()}
-              hint="Source records ingested and ready to score."
+              hint="Records received and ready to score."
             />
           </StatGrid>
 
           {confidence.missing_specifications.length > 0 ? (
             <details className="rounded-md border border-border bg-muted px-4 py-3">
               <summary className="cursor-pointer text-sm text-foreground">
-                {confidence.missing_specifications.length} specifications required
+                {confidence.missing_specifications.length} specifications
+                required
               </summary>
               <ul className="mt-3 space-y-2">
                 {confidence.missing_specifications.map((spec) => (
@@ -184,8 +195,8 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
   return (
     <Panel>
       <PanelHeader
-        title="Reality confidence"
-        description="Across every scored attribute in this workspace."
+        title="Confidence"
+        description="Across every scored field in this workspace."
       />
       <PanelBody>
         <StatGrid columns={4}>
@@ -193,9 +204,15 @@ function ConfidencePanel({ dashboard }: { dashboard: Dashboard }) {
             label="Average"
             value={`${confidence.average_confidence?.toFixed(1)}%`}
           />
-          <Stat label="Lowest" value={`${confidence.lowest_confidence?.toFixed(1)}%`} />
-          <Stat label="Highest" value={`${confidence.highest_confidence?.toFixed(1)}%`} />
-          <Stat label="Scored states" value={confidence.scored_state_count} />
+          <Stat
+            label="Lowest"
+            value={`${confidence.lowest_confidence?.toFixed(1)}%`}
+          />
+          <Stat
+            label="Highest"
+            value={`${confidence.highest_confidence?.toFixed(1)}%`}
+          />
+          <Stat label="Scored fields" value={confidence.scored_state_count} />
         </StatGrid>
       </PanelBody>
     </Panel>
@@ -226,7 +243,11 @@ function SourceHealthPanel({ dashboard }: { dashboard: Dashboard }) {
             label="Not yet tested"
             value={sources.never_tested}
             tone={sources.never_tested > 0 ? "warning" : "default"}
-            hint={sources.never_tested > 0 ? "Credentials stored, connection unproven." : undefined}
+            hint={
+              sources.never_tested > 0
+                ? "Credentials stored, connection unproven."
+                : undefined
+            }
           />
           <Stat
             label="Failing"
@@ -251,14 +272,16 @@ function SourceHealthPanel({ dashboard }: { dashboard: Dashboard }) {
                   </Link>
                   <p className="tabular mt-0.5 text-xs text-muted-foreground">
                     {source.stream_count}{" "}
-                    {source.stream_count === 1 ? "stream" : "streams"} ·{" "}
-                    {source.observation_count.toLocaleString()} observations
+                    {source.stream_count === 1 ? "table" : "tables"} ·{" "}
+                    {source.observation_count.toLocaleString()} records
                     {source.last_synced_at
                       ? ` · synced ${new Date(source.last_synced_at).toLocaleString()}`
                       : " · never synced"}
                   </p>
                   {source.last_error ? (
-                    <p className="mt-1 text-xs text-status-down">{source.last_error}</p>
+                    <p className="mt-1 text-xs text-status-down">
+                      {source.last_error}
+                    </p>
                   ) : null}
                 </div>
                 <SourceStatusBadge status={source.status} />
@@ -277,28 +300,28 @@ function IngestionPanel({ dashboard }: { dashboard: Dashboard }) {
   return (
     <Panel>
       <PanelHeader
-        title="Ingestion"
-        description={`Observations are immutable records of what a source stated. Window: last ${window_days} days.`}
+        title="Data received"
+        description={`What each source stated. These are never edited. Window: last ${window_days} days.`}
       />
       <PanelBody>
         <StatGrid columns={4}>
           <Stat
-            label="Observations"
+            label="Records"
             value={ingestion.observation_count.toLocaleString()}
             hint={`${ingestion.observations_in_window.toLocaleString()} in the last ${window_days} days`}
           />
           <Stat
-            label="Entities"
+            label="Items"
             value={ingestion.entity_count}
             hint={
               ingestion.unmapped_entity_count > 0
-                ? `${ingestion.unmapped_entity_count} with no mapped source rows`
+                ? `${ingestion.unmapped_entity_count} with no linked source rows`
                 : undefined
             }
             tone={ingestion.unmapped_entity_count > 0 ? "warning" : "default"}
           />
           <Stat
-            label="Streams"
+            label="Tables"
             value={ingestion.stream_count}
             hint={`${ingestion.enabled_stream_count} enabled`}
           />
@@ -322,7 +345,7 @@ function ConflictPanel({ dashboard }: { dashboard: Dashboard }) {
     <Panel>
       <PanelHeader
         title="Conflicts"
-        description="Sources stating different values for the same attribute."
+        description="Sources stating different values for the same field."
         action={
           <Link href="/conflicts">
             <Button variant="secondary" size="sm">
@@ -403,7 +426,9 @@ function ActivityPanel({
                   <p
                     className={cn(
                       "text-sm",
-                      item.severity === "error" ? "text-status-down" : "text-foreground",
+                      item.severity === "error"
+                        ? "text-status-down"
+                        : "text-foreground",
                     )}
                   >
                     {item.summary}

@@ -71,7 +71,9 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 function toStatus(state: SessionState): SessionStatus {
   if (state.authenticated) return { kind: "authenticated", session: state };
-  return state.reason === "expired" ? { kind: "expired" } : { kind: "anonymous" };
+  return state.reason === "expired"
+    ? { kind: "expired" }
+    : { kind: "anonymous" };
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -98,11 +100,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const login = useCallback(async (input: { email: string; password: string }) => {
-    // Errors propagate: the form owns the message, because it is the thing
-    // that can put it next to the field the person is looking at.
-    setStatus({ kind: "authenticated", session: await loginRequest(input) });
-  }, []);
+  const login = useCallback(
+    async (input: { email: string; password: string }) => {
+      // Errors propagate: the form owns the message, because it is the thing
+      // that can put it next to the field the person is looking at.
+      setStatus({ kind: "authenticated", session: await loginRequest(input) });
+    },
+    [],
+  );
 
   const register = useCallback(
     async (input: {
@@ -111,7 +116,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       full_name: string;
       organization_name: string;
     }) => {
-      setStatus({ kind: "authenticated", session: await registerRequest(input) });
+      setStatus({
+        kind: "authenticated",
+        session: await registerRequest(input),
+      });
     },
     [],
   );
