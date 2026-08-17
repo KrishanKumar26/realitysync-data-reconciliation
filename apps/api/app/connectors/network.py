@@ -122,3 +122,39 @@ def assert_host_is_permitted(host: str, *, allow_private: bool) -> None:
             "deployment."
         ),
     )
+
+
+def resolve_connect_address(host: str, *, allow_private: bool) -> str | None:
+    """The single address a connector should dial, after the policy check.
+
+    Returns ``None`` when the caller should let the driver resolve the name
+    itself: either private hosts are allowed (local development, where Docker
+    service names only resolve inside the container) or the name does not
+    resolve here, in which case the driver's own "could not be resolved" error
+    is the one the operator needs to see.
+
+    **IPv4 is preferred.** Managed database providers publish both A and AAAA
+    records, and several hosting platforms — Render among them — have no
+    outbound IPv6 route at all. There the driver picks the AAAA record and the
+    connection fails with "network is unreachable" against a database that is
+    perfectly reachable over IPv4. Preferring A costs nothing where IPv6 works
+    and is the difference between working and not where it does not.
+
+    Pinning the address also closes the DNS-rebinding gap: the address checked
+    by the policy is now the address actually dialled, so a name that resolves
+    to a public address during the check and a private one a moment later no
+    longer reaches the private one.
+    """
+    assert_host_is_permitted(host, allow_private=allow_private)
+
+    if allow_private:
+        return None
+
+    addresses = resolve_host(host)
+    if not addresses:
+        return None
+
+    for address in addresses:
+        if isinstance(ipaddress.ip_address(address), ipaddress.IPv4Address):
+            return address
+    return addresses[0]

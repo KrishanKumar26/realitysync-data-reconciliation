@@ -25,7 +25,7 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
 from app.connectors.base import DataConnector
-from app.connectors.network import assert_host_is_permitted
+from app.connectors.network import resolve_connect_address
 from app.connectors.postgres.config import PostgresConnectionConfig
 from app.connectors.postgres.errors import map_exception
 from app.connectors.types import (
@@ -104,15 +104,21 @@ class PostgresConnector(DataConnector):
 
     # --- Connection -------------------------------------------------------
 
-    def _conninfo(self) -> str:
+    def _conninfo(self, hostaddr: str | None = None) -> str:
         """Build the libpq connection string.
 
         ``make_conninfo`` escapes values properly. Building this by hand would
         make a password containing a space or a quote either fail or, worse,
         change the meaning of the string.
+
+        When ``hostaddr`` is given, libpq dials that address but still uses
+        ``host`` for SNI and certificate verification — which is the whole
+        reason the two are separate parameters, and why pinning the address
+        does not weaken TLS.
         """
         return make_conninfo(
             host=self._config.host,
+            **({"hostaddr": hostaddr} if hostaddr else {}),
             port=self._config.port,
             dbname=self._config.database,
             user=self._config.username,
@@ -136,13 +142,16 @@ class PostgresConnector(DataConnector):
 
         # Re-checked here, not only at configuration time. A stored config is
         # used long after it was validated, and the address behind a hostname
-        # can change in between.
-        assert_host_is_permitted(self._config.host, allow_private=self._allow_private_hosts)
+        # can change in between. The address that passes the check is then the
+        # address dialled, so the two cannot disagree.
+        hostaddr = resolve_connect_address(
+            self._config.host, allow_private=self._allow_private_hosts
+        )
 
         started = time.perf_counter()
         try:
             self._connection = await psycopg.AsyncConnection.connect(
-                self._conninfo(), autocommit=True, row_factory=dict_row
+                self._conninfo(hostaddr), autocommit=True, row_factory=dict_row
             )
         except Exception as exc:
             error = map_exception(exc, operation="connect")

@@ -1151,3 +1151,73 @@ async def test_deleting_an_organization_leaves_no_orphaned_tenant_rows(
             .where(model.organization_id == account.organization_id)
         )
         assert remaining == 0, f"{model.__name__} rows outlived their organization"
+
+
+# ---------------------------------------------------------------------------
+# Address pinning
+#
+# Two things at once: a platform without outbound IPv6 must still reach a
+# dual-stack database, and the address the policy checked must be the address
+# actually dialled.
+# ---------------------------------------------------------------------------
+
+
+def test_connect_address_prefers_ipv4(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A dual-stack host resolves to its IPv4 address, not its IPv6 one.
+
+    Render and several other platforms have no outbound IPv6 route, so a driver
+    that picks the AAAA record fails with "network is unreachable" against a
+    database that is reachable over IPv4.
+    """
+    from app.connectors import network
+
+    monkeypatch.setattr(network, "resolve_host", lambda host: ["2600:1f16:12b2::1", "18.226.241.3"])
+
+    assert network.resolve_connect_address("db.example.com", allow_private=False) == "18.226.241.3"
+
+
+def test_connect_address_defers_to_the_driver_when_private_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Local development must keep resolving Docker service names itself."""
+    from app.connectors import network
+
+    assert network.resolve_connect_address("source-postgres", allow_private=True) is None
+
+
+def test_connect_address_still_refuses_a_private_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pinning must not have become a way around the policy."""
+    from app.connectors import network
+    from app.connectors.types import ConnectorError, ConnectorErrorCode
+
+    monkeypatch.setattr(network, "resolve_host", lambda host: ["10.0.0.1"])
+
+    with pytest.raises(ConnectorError) as caught:
+        network.resolve_connect_address("internal.example.com", allow_private=False)
+    assert caught.value.code is ConnectorErrorCode.INVALID_CONFIGURATION
+
+
+def test_conninfo_pins_the_address_but_keeps_the_hostname_for_tls() -> None:
+    """`hostaddr` dials, `host` verifies. Losing the hostname would break TLS."""
+    from app.connectors.postgres.config import PostgresConnectionConfig, SslMode
+    from app.connectors.postgres.connector import PostgresConnector
+
+    connector = PostgresConnector(
+        config=PostgresConnectionConfig(
+            host="db.example.com",
+            port=5432,
+            database="warehouse",
+            username="reader",
+            ssl_mode=SslMode.REQUIRE,
+        ),
+        password="secret",
+    )
+
+    conninfo = connector._conninfo("18.226.241.3")
+    assert "hostaddr=18.226.241.3" in conninfo
+    assert "host=db.example.com" in conninfo
+
+    # No address pinned: no hostaddr at all, rather than an empty one.
+    assert "hostaddr" not in connector._conninfo(None)

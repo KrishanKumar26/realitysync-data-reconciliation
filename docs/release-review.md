@@ -181,10 +181,10 @@ recoverable; twelve inputs remain missing. See
 confidence field is `null` with the reason attached, conflicts are ungraded, and
 the LAPTOP-001 golden test is skipped. **Not verified, and not claimed to be.**
 
-**I2 — DNS rebinding is not fully closed.** The connector host is validated at
-configuration time and again at connect time, but the address behind a hostname
-could change in between. Closing it needs the resolved address pinned and handed
-to the driver, which neither driver exposes cleanly.
+**I2 — DNS rebinding is closed for PostgreSQL, open for MySQL.** The resolved
+address is now pinned and handed to libpq as `hostaddr`, with `host` retained
+for certificate verification. aiomysql exposes only one `host`, used both to
+dial and to verify, so MySQL is still validated twice rather than pinned.
 
 **I3 — No penetration test, no load test.** Query counts and plans were measured;
 concurrent throughput, connection-pool saturation and lock contention were not.

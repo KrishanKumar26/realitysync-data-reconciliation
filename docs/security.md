@@ -261,12 +261,22 @@ query against a tenant table would be entirely unprotected.
 caught by the ORM listener. Routes derive it from the session context, so it is
 not currently reachable, but the layer does not cover it.
 
-**DNS rebinding is not fully closed.** The connector host is validated at
-configuration time and again at connect time, but the address behind a hostname
-could change between the check and the connection. Closing it needs the
-resolved address pinned and handed to the driver instead of the hostname, which
-neither driver exposes cleanly. Two checks raise the cost substantially; they do
-not eliminate it.
+**DNS rebinding is closed for PostgreSQL, open for MySQL.** The host is
+validated at configuration time and again at connect time. For PostgreSQL the
+address that passes the check is now the address dialled: `resolve_connect_address`
+returns it and it is handed to libpq as `hostaddr`, while `host` still carries
+the name for SNI and certificate verification — the two are separate parameters
+for exactly this reason, so pinning the address does not weaken TLS.
+
+MySQL remains unpinned. aiomysql takes a single `host`, used both to dial and
+as the TLS `server_hostname`, so substituting the address would break hostname
+verification under `verify-full`. Two checks raise the cost there; they do not
+eliminate it.
+
+The same pin prefers **IPv4**. Managed providers publish both A and AAAA
+records and several hosting platforms have no outbound IPv6 route, where the
+driver would otherwise pick the AAAA record and fail with "network is
+unreachable" against a database reachable over IPv4.
 
 **Not tested:** rate-limit bypass under concurrency, session fixation, CSRF
 token entropy, timing attacks on login, TLS configuration of the deployment,
