@@ -16,6 +16,7 @@ import {
   NAV_ITEMS,
   type NavGroup,
 } from "@/components/shell/nav";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { cn } from "@/lib/utils";
 
 /**
@@ -181,7 +182,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="sr-only">Menu</span>
             </button>
             <div className="hidden lg:block" />
-            <ApiStatusIndicator state={state} />
+            <div className="flex items-center gap-4">
+              <ApiStatusIndicator state={state} />
+              <ThemeToggle />
+            </div>
           </header>
 
           <main id="main" className="flex-1 px-5 py-8 lg:px-8">
