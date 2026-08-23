@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { SetupGuide } from "@/components/onboarding/setup-guide";
 import { SourceStatusBadge } from "@/components/sources/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { BarRows, Donut, RatioBar, type Slice } from "@/components/ui/chart";
@@ -152,24 +153,11 @@ export default function OverviewPage() {
         </Panel>
       ) : null}
 
-      {state.kind === "ready" && state.dashboard.is_empty ? (
-        <Panel>
-          <PanelBody className="p-0">
-            <EmptyState
-              icon={<Plug />}
-              title="Nothing connected yet"
-              description="RealitySync reports state only from real connected sources. Connect a PostgreSQL or MySQL database to begin — everything on this page is derived from what those sources actually say."
-              action={
-                <Link href="/sources">
-                  <Button>
-                    <Database aria-hidden="true" />
-                    Connect a source
-                  </Button>
-                </Link>
-              }
-            />
-          </PanelBody>
-        </Panel>
+      {/* Shown until setup is genuinely finished, not only while the
+          workspace is empty: the hardest place to get stuck was halfway, with
+          a source connected and every screen still blank. */}
+      {state.kind === "ready" ? (
+        <SetupGuide dashboard={state.dashboard} />
       ) : null}
 
       {state.kind === "ready" && !state.dashboard.is_empty ? (

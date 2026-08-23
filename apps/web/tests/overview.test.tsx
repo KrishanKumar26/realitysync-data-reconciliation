@@ -194,12 +194,10 @@ describe("Overview", () => {
     await renderWithSession(<OverviewPage />);
 
     expect(screen.getByTestId("overview-loading")).toBeInTheDocument();
-    expect(screen.queryByText("Nothing connected yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Finish setting up")).not.toBeInTheDocument();
 
     resolve();
-    expect(
-      await screen.findByText("Nothing connected yet"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Finish setting up")).toBeInTheDocument();
   });
 
   it("offers onboarding when nothing is connected", async () => {
@@ -207,11 +205,12 @@ describe("Overview", () => {
 
     await renderWithSession(<OverviewPage />);
 
+    // The guide names every step and points at the first unfinished one,
+    // rather than answering only "connect something" and then going quiet.
+    expect(await screen.findByText("Finish setting up")).toBeInTheDocument();
+    expect(screen.getByText("0 of 6")).toBeInTheDocument();
     expect(
-      await screen.findByText("Nothing connected yet"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Connect a source" }),
+      screen.getByRole("link", { name: /Add a database/ }),
     ).toHaveAttribute("href", "/sources");
   });
 
