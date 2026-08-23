@@ -17,15 +17,19 @@ from app.api.deps import (
     OptionalAuth,
     enforce_csrf,
 )
+from app.core.config import Settings
 from app.core.logging import get_logger
 from app.models.audit_log import AuditAction
 from app.schemas.auth import (
     AnonymousSessionResponse,
     AuthenticatedSessionResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     LogoutResponse,
+    MessageResponse,
     OrganizationMembershipResponse,
     RegisterRequest,
+    ResetPasswordRequest,
     SwitchOrganizationRequest,
     UserResponse,
 )
@@ -43,7 +47,15 @@ from app.services.auth import (
     revoke_session,
     switch_organization,
 )
+from app.services.notifications import get_reset_link_sender
+from app.services.password_reset import (
+    InvalidResetToken,
+    request_password_reset,
+    reset_password,
+)
 from app.services.rate_limit import (
+    PASSWORD_RESET_CONFIRM_POLICY,
+    PASSWORD_RESET_REQUEST_POLICY,
     REGISTRATION_POLICY,
     RateLimitPolicy,
     RateLimitVerdict,
@@ -402,3 +414,123 @@ async def switch_active_organization(
         active_membership=membership,
     )
     return await _session_payload(db, refreshed)
+
+
+# --- Forgot password -------------------------------------------------------
+
+
+def _reset_link(settings: Settings, token: str) -> str:
+    """Where the reset form lives.
+
+    Built from the first configured CORS origin rather than a separate setting:
+    that list is already the definitive answer to "where does the frontend
+    live", and a second setting is a second thing to get out of step.
+    """
+    origin = settings.cors_origins[0].rstrip("/") if settings.cors_origins else ""
+    return f"{origin}/reset-password?token={token}"
+
+
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=MessageResponse,
+    summary="Request a password reset link",
+)
+async def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: DbSession,
+    settings: AppSettings,
+) -> MessageResponse:
+    """Send a reset link, if that address belongs to an account.
+
+    **Answers identically either way.** Same status, same body, whether or not
+    the address is registered. A reset form that says "no such account" is a
+    free account-enumeration oracle, and this deployment has been careful not
+    to hand those out anywhere else.
+
+    202 rather than 200: the request was accepted. Whether anything was sent is
+    deliberately not stated.
+    """
+    verdict = await get_rate_limiter().check(PASSWORD_RESET_REQUEST_POLICY, payload.email.lower())
+    if not verdict.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many reset requests for that address. Try again later.",
+            headers=_rate_limit_headers(PASSWORD_RESET_REQUEST_POLICY, verdict),
+        )
+
+    created = await request_password_reset(db, email=payload.email)
+
+    if created is not None:
+        await get_reset_link_sender().send(
+            email=created.email, link=_reset_link(settings, created.token)
+        )
+        await audit.record(
+            db,
+            action=AuditAction.PASSWORD_RESET_REQUESTED,
+            details={"email": created.email},
+            request=request,
+        )
+    await db.commit()
+
+    return MessageResponse(
+        message=(
+            "If that address belongs to an account, a reset link is on its way. "
+            "The link expires in one hour."
+        )
+    )
+
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    summary="Set a new password using a reset link",
+)
+async def reset_password_route(
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: DbSession,
+    settings: AppSettings,
+) -> MessageResponse:
+    """Spend the token and set the new password.
+
+    Every live session for that user is ended. Someone resetting a password is
+    often doing it because they believe somebody else is signed in, and leaving
+    those sessions alive would defeat the exercise.
+
+    Unknown, spent and expired tokens all produce the same 400. Telling them
+    apart would say whether a token ever existed.
+    """
+    verdict = await get_rate_limiter().check(
+        PASSWORD_RESET_CONFIRM_POLICY, audit.client_ip(request) or "unknown"
+    )
+    if not verdict.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Try again later.",
+            headers=_rate_limit_headers(PASSWORD_RESET_CONFIRM_POLICY, verdict),
+        )
+
+    try:
+        user = await reset_password(db, token=payload.token, new_password=payload.password)
+    except InvalidResetToken:
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "That reset link is no longer valid. Links expire after an hour "
+                "and can only be used once. Request a new one."
+            ),
+        ) from None
+
+    await audit.record(
+        db,
+        action=AuditAction.PASSWORD_RESET_COMPLETED,
+        actor_user_id=user.id,
+        details={"email": user.email},
+        request=request,
+    )
+    await db.commit()
+
+    return MessageResponse(message="Your password has been changed. Sign in with the new one.")

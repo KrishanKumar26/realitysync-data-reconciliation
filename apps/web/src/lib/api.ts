@@ -275,6 +275,32 @@ export function registerRequest(input: {
   }).then(withToken);
 }
 
+/**
+ * Ask for a reset link.
+ *
+ * Resolves the same way whether or not the address is registered — that is
+ * the API refusing to be an account-enumeration oracle, and the UI must not
+ * undo it by branching on anything here.
+ */
+export function forgotPasswordRequest(
+  email: string,
+): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPasswordRequest(input: {
+  token: string;
+  password: string;
+}): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export function logoutRequest(): Promise<{ ok: true }> {
   return apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }).then(
     (result) => {

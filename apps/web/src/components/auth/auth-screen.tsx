@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 
 import { useSession } from "@/components/auth/session-provider";
 import { Check } from "lucide-react";
+
+import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 import type { CSSProperties } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,7 @@ import { Field, Input, PasswordInput } from "@/components/ui/field";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 /** Mirrors the API's policy so the client can say so before a round trip. */
 const PASSWORD_MIN_LENGTH = 12;
@@ -98,149 +100,169 @@ export function AuthScreen({ expired = false }: { expired?: boolean }) {
             <Wordmark />
           </div>
 
-          <h1
-            className="animate-rise-stagger text-2xl font-semibold tracking-tight text-foreground"
-            style={{ "--stagger": 1 } as CSSProperties}
-          >
-            {isSignUp ? "Create your workspace" : "Sign in"}
-          </h1>
-          <p
-            className="animate-rise-stagger mt-2 text-sm leading-relaxed text-muted-foreground"
-            style={{ "--stagger": 2 } as CSSProperties}
-          >
-            {isSignUp
-              ? "A workspace holds your connected databases and everything RealitySync works out from them."
-              : "Welcome back."}
-          </p>
+          {mode === "forgot" ? (
+            <ForgotPasswordForm onBack={() => switchMode("signin")} />
+          ) : (
+            <>
+              <h1
+                className="animate-rise-stagger text-2xl font-semibold tracking-tight text-foreground"
+                style={{ "--stagger": 1 } as CSSProperties}
+              >
+                {isSignUp ? "Create your workspace" : "Sign in"}
+              </h1>
+              <p
+                className="animate-rise-stagger mt-2 text-sm leading-relaxed text-muted-foreground"
+                style={{ "--stagger": 2 } as CSSProperties}
+              >
+                {isSignUp
+                  ? "A workspace holds your connected databases and everything RealitySync works out from them."
+                  : "Welcome back."}
+              </p>
 
-          {expired ? (
-            <div
-              role="status"
-              className="mt-5 rounded-md border border-border bg-muted px-3.5 py-2.5 text-sm text-muted-foreground"
-            >
-              You were signed out. Sign in again to continue.
-            </div>
-          ) : null}
+              {expired ? (
+                <div
+                  role="status"
+                  className="mt-5 rounded-md border border-border bg-muted px-3.5 py-2.5 text-sm text-muted-foreground"
+                >
+                  You were signed out. Sign in again to continue.
+                </div>
+              ) : null}
 
-          <form
-            onSubmit={handleSubmit}
-            className="animate-rise-stagger mt-6 space-y-4"
-            style={{ "--stagger": 3 } as CSSProperties}
-            noValidate
-          >
-            {isSignUp ? (
-              <>
-                <Field label="Your name" error={fieldErrors.full_name}>
+              <form
+                onSubmit={handleSubmit}
+                className="animate-rise-stagger mt-6 space-y-4"
+                style={{ "--stagger": 3 } as CSSProperties}
+                noValidate
+              >
+                {isSignUp ? (
+                  <>
+                    <Field label="Your name" error={fieldErrors.full_name}>
+                      {({ inputId, describedBy }) => (
+                        <Input
+                          id={inputId}
+                          aria-describedby={describedBy}
+                          aria-invalid={Boolean(fieldErrors.full_name)}
+                          name="full_name"
+                          autoComplete="name"
+                          required
+                          value={fullName}
+                          onChange={(event) => setFullName(event.target.value)}
+                        />
+                      )}
+                    </Field>
+
+                    <Field
+                      label="Workspace name"
+                      error={fieldErrors.organization_name}
+                    >
+                      {({ inputId, describedBy }) => (
+                        <Input
+                          id={inputId}
+                          aria-describedby={describedBy}
+                          aria-invalid={Boolean(fieldErrors.organization_name)}
+                          name="organization_name"
+                          autoComplete="organization"
+                          required
+                          value={organizationName}
+                          onChange={(event) =>
+                            setOrganizationName(event.target.value)
+                          }
+                        />
+                      )}
+                    </Field>
+                  </>
+                ) : null}
+
+                <Field label="Email" error={fieldErrors.email}>
                   {({ inputId, describedBy }) => (
                     <Input
                       id={inputId}
                       aria-describedby={describedBy}
-                      aria-invalid={Boolean(fieldErrors.full_name)}
-                      name="full_name"
-                      autoComplete="name"
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      name="email"
+                      type="email"
+                      autoComplete="email"
                       required
-                      value={fullName}
-                      onChange={(event) => setFullName(event.target.value)}
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
                     />
                   )}
                 </Field>
 
                 <Field
-                  label="Workspace name"
-                  error={fieldErrors.organization_name}
+                  label="Password"
+                  hint={
+                    isSignUp
+                      ? `At least ${PASSWORD_MIN_LENGTH} characters.`
+                      : undefined
+                  }
+                  error={fieldErrors.password}
                 >
                   {({ inputId, describedBy }) => (
-                    <Input
+                    <PasswordInput
                       id={inputId}
                       aria-describedby={describedBy}
-                      aria-invalid={Boolean(fieldErrors.organization_name)}
-                      name="organization_name"
-                      autoComplete="organization"
-                      required
-                      value={organizationName}
-                      onChange={(event) =>
-                        setOrganizationName(event.target.value)
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      name="password"
+                      autoComplete={
+                        isSignUp ? "new-password" : "current-password"
                       }
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
                     />
                   )}
                 </Field>
-              </>
-            ) : null}
 
-            <Field label="Email" error={fieldErrors.email}>
-              {({ inputId, describedBy }) => (
-                <Input
-                  id={inputId}
-                  aria-describedby={describedBy}
-                  aria-invalid={Boolean(fieldErrors.email)}
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              )}
-            </Field>
+                {error ? (
+                  <p role="alert" className="text-sm text-status-down">
+                    {error}
+                  </p>
+                ) : null}
 
-            <Field
-              label="Password"
-              hint={
-                isSignUp
-                  ? `At least ${PASSWORD_MIN_LENGTH} characters.`
-                  : undefined
-              }
-              error={fieldErrors.password}
-            >
-              {({ inputId, describedBy }) => (
-                <PasswordInput
-                  id={inputId}
-                  aria-describedby={describedBy}
-                  aria-invalid={Boolean(fieldErrors.password)}
-                  name="password"
-                  autoComplete={isSignUp ? "new-password" : "current-password"}
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-              )}
-            </Field>
+                <Button
+                  type="submit"
+                  size="md"
+                  className="h-10 w-full"
+                  disabled={submitting}
+                >
+                  {submitting
+                    ? isSignUp
+                      ? "Creating workspace…"
+                      : "Signing in…"
+                    : isSignUp
+                      ? "Create workspace"
+                      : "Sign in"}
+                </Button>
+              </form>
 
-            {error ? (
-              <p role="alert" className="text-sm text-status-down">
-                {error}
+              <p
+                className="animate-rise-stagger mt-6 text-sm text-muted-foreground"
+                style={{ "--stagger": 4 } as CSSProperties}
+              >
+                {isSignUp ? "Already have an account? " : "No account yet? "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(isSignUp ? "signin" : "signup")}
+                  className="font-medium text-foreground underline underline-offset-4 hover:opacity-80"
+                >
+                  {isSignUp ? "Sign in" : "Create one"}
+                </button>
               </p>
-            ) : null}
 
-            <Button
-              type="submit"
-              size="md"
-              className="h-10 w-full"
-              disabled={submitting}
-            >
-              {submitting
-                ? isSignUp
-                  ? "Creating workspace…"
-                  : "Signing in…"
-                : isSignUp
-                  ? "Create workspace"
-                  : "Sign in"}
-            </Button>
-          </form>
-
-          <p
-            className="animate-rise-stagger mt-6 text-sm text-muted-foreground"
-            style={{ "--stagger": 4 } as CSSProperties}
-          >
-            {isSignUp ? "Already have an account? " : "No account yet? "}
-            <button
-              type="button"
-              onClick={() => switchMode(isSignUp ? "signin" : "signup")}
-              className="font-medium text-foreground underline underline-offset-4 hover:opacity-80"
-            >
-              {isSignUp ? "Sign in" : "Create one"}
-            </button>
-          </p>
+              {!isSignUp ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => switchMode("forgot")}
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    Forgot your password?
+                  </button>
+                </p>
+              ) : null}
+            </>
+          )}
         </div>
       </main>
     </div>

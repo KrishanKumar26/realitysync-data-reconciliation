@@ -217,3 +217,18 @@ def login_policy(settings: Settings) -> RateLimitPolicy:
 #: exists to slow bulk account creation, and there is no deployment-specific
 #: reason to widen it.
 REGISTRATION_POLICY = RateLimitPolicy(name="auth.register", max_attempts=5, window_seconds=3600)
+
+#: Tighter than registration. A reset request costs the sender nothing and
+#: costs the account's owner an unwanted message, so a loose limit turns the
+#: form into a way to mail-bomb someone. Keyed on the address, not the IP:
+#: limiting by IP would let a distributed caller keep hammering one inbox.
+PASSWORD_RESET_REQUEST_POLICY = RateLimitPolicy(
+    name="auth.reset_request", max_attempts=3, window_seconds=3600
+)
+
+#: Guessing a 256-bit token is not a realistic attack, but an unlimited
+#: endpoint that does a database lookup per call is a cheap way to load the
+#: server. Keyed on IP, since a guesser has no address to key on.
+PASSWORD_RESET_CONFIRM_POLICY = RateLimitPolicy(
+    name="auth.reset_confirm", max_attempts=10, window_seconds=3600
+)

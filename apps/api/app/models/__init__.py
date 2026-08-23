@@ -27,6 +27,7 @@ from app.models.entity import Entity, EntityMapping
 from app.models.membership import ROLE_VALUES, Membership, OrganizationRole
 from app.models.observation import EntityMappingState, Observation
 from app.models.organization import Organization
+from app.models.password_reset import PasswordResetToken
 from app.models.reality_state import (
     EvidenceRole,
     RealityState,
@@ -56,6 +57,7 @@ __all__ = [
     "Observation",
     "Organization",
     "OrganizationRole",
+    "PasswordResetToken",
     "RealityState",
     "RealityStateEvidence",
     "RealityStatus",

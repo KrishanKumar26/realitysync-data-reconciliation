@@ -38,6 +38,13 @@ class AuditAction(str):
     SESSION_LOGGED_OUT = "session.logged_out"
     SESSION_REJECTED = "session.rejected"
     ORGANIZATION_SWITCHED = "organization.switched"
+    #: Recorded even though the request is anonymous: a burst of these against
+    #: addresses that do not exist is what account enumeration looks like.
+    # The S105 suppressions below are false positives: these are audit action
+    # names, not credentials. The rule fires on any constant whose name
+    # contains "PASSWORD".
+    PASSWORD_RESET_REQUESTED = "password.reset_requested"  # noqa: S105
+    PASSWORD_RESET_COMPLETED = "password.reset_completed"  # noqa: S105
 
 
 class AuditLog(Base):

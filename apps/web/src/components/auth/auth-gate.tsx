@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 
+import { usePathname } from "next/navigation";
+
 import { AuthScreen } from "@/components/auth/auth-screen";
 import { useSession } from "@/components/auth/session-provider";
 import { AppShell } from "@/components/shell/app-shell";
@@ -18,7 +20,17 @@ import { ErrorState } from "@/components/ui/states";
  * and blames the user for a backend outage.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { status, refresh } = useSession();
+
+  // The reset page has to render for someone who is signed out — that is the
+  // entire situation it exists for. Without this the gate shows the sign-in
+  // form instead and the link in the email goes nowhere.
+  //
+  // Checked after the hooks, never before: an early return above them would
+  // change how many hooks run between renders, which is a rule of hooks
+  // violation and a genuinely nasty class of bug.
+  if (pathname === "/reset-password") return <>{children}</>;
 
   switch (status.kind) {
     case "loading":

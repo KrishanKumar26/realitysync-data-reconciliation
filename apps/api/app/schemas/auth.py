@@ -67,6 +67,32 @@ class LoginRequest(BaseModel):
     password: PasswordStr
 
 
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """A token and the password to set.
+
+    The same policy validator as registration, deliberately. A reset is exactly
+    the moment a weak password would otherwise walk past the rules that guard
+    the sign-up form — and someone resetting under pressure is more likely, not
+    less, to reach for something short.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: Annotated[str, Field(min_length=16, max_length=256)]
+    password: PasswordStr
+
+    @field_validator("password")
+    @classmethod
+    def _password_policy(cls, value: str) -> str:
+        return _validate_password_policy(value)
+
+
 class SwitchOrganizationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -126,6 +152,18 @@ class AnonymousSessionResponse(BaseModel):
     #: Distinguishes "never signed in" from "your session ended", so the
     #: interface can say which. Never explains *why* beyond a coarse category.
     reason: Literal["anonymous", "expired"] = "anonymous"
+
+
+class MessageResponse(BaseModel):
+    """A sentence for the user. Used where there is no record to return.
+
+    Password reset answers with one of these on purpose: returning anything
+    shaped like a user would say whether the address exists.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
 
 
 class LogoutResponse(BaseModel):
