@@ -16,6 +16,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -266,12 +267,21 @@ async def load_observations_for_entity(
     *,
     organization_id: uuid.UUID,
     entity_id: uuid.UUID,
+    known_at: datetime | None = None,
 ) -> list[Observation]:
     """Every observation mapped to this entity, oldest event time first.
 
     The engine's input. Ordered deterministically so a calculation over the
     same data is byte-identical between runs — the ordering the engine relies
     on is its own, but a stable input removes one more source of drift.
+
+    ``known_at`` is the knowledge cutoff: only records that had already been
+    *ingested* by that moment are returned. It filters on ``ingested_at``, not
+    ``event_time``, and the difference is the entire point. "What was true on
+    the 15th" asks about the world; "what did we know on the 15th" asks about
+    us, and the two answers differ exactly where a source reported late. A
+    filter on event_time would silently answer the first question while
+    appearing to answer the second.
     """
     mapped = (
         select(EntityMapping.stream_id, EntityMapping.external_id)
@@ -288,7 +298,10 @@ async def load_observations_for_entity(
             (Observation.stream_id == mapped.c.stream_id)
             & (Observation.external_id == mapped.c.external_id),
         )
-        .where(Observation.organization_id == organization_id)
+        .where(
+            Observation.organization_id == organization_id,
+            *((Observation.ingested_at <= known_at,) if known_at is not None else ()),
+        )
         .order_by(Observation.event_time, Observation.ingested_at, Observation.id)
     )
     return list(rows)

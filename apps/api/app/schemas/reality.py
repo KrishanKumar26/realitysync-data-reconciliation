@@ -249,3 +249,38 @@ class TimelineResponse(BaseModel):
     late_arrival_count: int
     truncated: bool
     events: list[TimelineEventResponse]
+
+
+class HistoricalAttributeResponse(BaseModel):
+    """One field as it stood at a chosen moment."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    attribute: str
+    status: str
+    value: Any
+    value_selected: bool
+    confidence: Decimal | None
+    confidence_available: bool
+    selection_reason: str
+    supporting_count: int
+    dissenting_count: int
+    source_count: int
+    candidate_count: int
+
+
+class RealityAsOfResponse(BaseModel):
+    """What RealitySync would have said at ``known_at``.
+
+    ``observations_since`` is the interesting number: it counts records that
+    exist now but had not arrived by then. When a past answer differs from
+    today's and no source changed its mind, this is why.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    entity_id: uuid.UUID
+    known_at: datetime
+    observations_known: int
+    observations_since: int
+    attributes: list[HistoricalAttributeResponse]

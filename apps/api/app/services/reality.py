@@ -37,6 +37,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -461,3 +462,122 @@ def detection_as_dict(calculation: RealityCalculation) -> dict[str, Any]:
             if entry.role is EvidenceRole.EXCLUDED
         ],
     }
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalAttribute:
+    """One attribute as it stood at a chosen moment."""
+
+    attribute: str
+    status: str
+    value: Any
+    value_selected: bool
+    confidence: Decimal | None
+    confidence_available: bool
+    selection_reason: str
+    supporting_count: int
+    dissenting_count: int
+    source_count: int
+    candidate_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalReality:
+    """What RealitySync would have said about an entity at ``known_at``."""
+
+    entity_id: uuid.UUID
+    known_at: datetime
+    #: Records that existed by then. The reason a past answer can differ from
+    #: today's even though no source changed its mind: some of them had simply
+    #: not arrived yet.
+    observations_known: int
+    #: Records that exist now but had not been ingested by ``known_at``.
+    observations_since: int
+    attributes: tuple[HistoricalAttribute, ...]
+
+
+async def reality_as_of(
+    db: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    entity_id: uuid.UUID,
+    known_at: datetime,
+    specification: ConfidenceSpecification = UNAVAILABLE_SPECIFICATION,
+) -> HistoricalReality:
+    """Recompute an entity as it stood when we only knew what we knew then.
+
+    **Writes nothing.** A time-travel query that persisted its result would
+    overwrite the present with the past, which is a spectacular way to lose
+    the current state — so this returns the calculation and stops. It is a
+    ``GET`` for that reason.
+
+    Two cutoffs are in play and they are not the same one. ``known_at`` is
+    passed to the loader as the *ingestion* cutoff, so the engine sees only
+    what had arrived by then; it is also passed to the engine as ``as_of``, so
+    ages and freshness are measured from that moment rather than from now.
+    Using today's clock over yesterday's records would produce an answer that
+    never existed.
+    """
+    observations = await load_observations_for_entity(
+        db,
+        organization_id=organization_id,
+        entity_id=entity_id,
+        known_at=known_at,
+    )
+    total_now = len(
+        await load_observations_for_entity(db, organization_id=organization_id, entity_id=entity_id)
+    )
+
+    authorities = await _source_authorities(db, organization_id=organization_id)
+
+    results: list[HistoricalAttribute] = []
+    for attribute in attributes_in(observations):
+        inputs = tuple(
+            to_engine_input(
+                observation,
+                attribute=attribute,
+                authority=authorities.get(observation.source_id, SourceAuthority.SECONDARY),
+            )
+            for observation in observations
+            if attribute in observation.payload
+        )
+        outcome = calculate(
+            attribute=attribute,
+            observations=inputs,
+            as_of=known_at,
+            specification=specification,
+        )
+        results.append(
+            HistoricalAttribute(
+                attribute=attribute,
+                status=outcome.status.value,
+                value=outcome.value,
+                value_selected=outcome.value_selected,
+                # `.score`, not the wrapper: a NULL here must mean "no score
+                # exists", never "the object was missing an attribute".
+                confidence=(outcome.confidence.score if outcome.confidence is not None else None),
+                confidence_available=outcome.confidence is not None,
+                selection_reason=outcome.selection_reason,
+                supporting_count=outcome.supporting_count,
+                dissenting_count=outcome.dissenting_count,
+                source_count=outcome.source_count,
+                candidate_count=len(outcome.candidates),
+            )
+        )
+
+    logger.info(
+        "reality.as_of_queried",
+        entity_id=str(entity_id),
+        organization_id=str(organization_id),
+        known_at=known_at.isoformat(),
+        observations_known=len(observations),
+        observations_since=total_now - len(observations),
+    )
+
+    return HistoricalReality(
+        entity_id=entity_id,
+        known_at=known_at,
+        observations_known=len(observations),
+        observations_since=total_now - len(observations),
+        attributes=tuple(results),
+    )

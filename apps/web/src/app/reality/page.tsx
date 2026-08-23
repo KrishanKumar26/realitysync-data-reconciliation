@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { EntitySetup } from "@/components/reality/entity-setup";
 import { EvidenceTrail } from "@/components/reality/evidence-trail";
+import { TimeTravel } from "@/components/reality/time-travel";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataView } from "@/components/ui/data-view";
@@ -388,6 +389,8 @@ export default function RealityPage() {
               )}
             </PanelBody>
           </Panel>
+
+          {entityId ? <TimeTravel entityId={entityId} /> : null}
         </>
       ) : null}
     </div>

@@ -35,6 +35,7 @@ from app.schemas.reality import (
     EntityResponse,
     EvidenceResponse,
     MappingResponse,
+    RealityAsOfResponse,
     RealityStateResponse,
     RecalculateResponse,
     TimelineEventResponse,
@@ -55,6 +56,7 @@ from app.services.entities import (
 from app.services.reality import (
     detection_as_dict,
     detection_for_entity,
+    reality_as_of,
     recalculate_entity,
 )
 from app.services.timeline import TimeAxis, reconstruct
@@ -275,6 +277,51 @@ async def recalculate_route(
             else []
         ),
     )
+
+
+@router.get(
+    "/entities/{entity_id}/reality/as-of",
+    response_model=RealityAsOfResponse,
+    summary="What we would have said at a past moment",
+)
+async def reality_as_of_route(
+    entity_id: uuid.UUID,
+    db: DbSession,
+    context: CurrentOrganization,
+    at: Annotated[
+        datetime,
+        Query(description="The moment to answer as of, as an ISO-8601 timestamp."),
+    ],
+) -> RealityAsOfResponse:
+    """Recompute this entity using only what had arrived by ``at``.
+
+    This is the question the bitemporal model exists to answer: not "what was
+    true then" — the Timeline already shows that — but "what would this system
+    have told you then", which is different exactly where a source reported
+    late. An answer that later changed without any source changing its mind is
+    the most useful thing this product can show, and it was previously
+    unreachable despite every input being stored.
+
+    A **GET**, and it persists nothing. Writing the result would overwrite the
+    present with the past.
+    """
+    await _require_entity(db, context=context, entity_id=entity_id)
+
+    if at.tzinfo is None:
+        # A naive timestamp is ambiguous, and guessing UTC would silently shift
+        # the answer by the caller's offset.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide a time zone, for example 2026-08-15T10:00:00Z.",
+        )
+
+    result = await reality_as_of(
+        db,
+        organization_id=context.organization_id,
+        entity_id=entity_id,
+        known_at=at,
+    )
+    return RealityAsOfResponse.model_validate(result)
 
 
 @router.get(

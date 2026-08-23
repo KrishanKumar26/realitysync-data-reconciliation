@@ -90,6 +90,40 @@ export interface Timeline {
   events: TimelineEvent[];
 }
 
+/**
+ * One field as it stood at a chosen past moment.
+ *
+ * Deliberately not `RealityState`: it has no `id`, because it was never
+ * stored. A time-travel answer is computed on request and thrown away — the
+ * alternative, saving it, would overwrite the present with the past.
+ */
+export interface HistoricalAttribute {
+  attribute: string;
+  status: string;
+  value: unknown;
+  value_selected: boolean;
+  confidence: string | null;
+  confidence_available: boolean;
+  selection_reason: string;
+  supporting_count: number;
+  dissenting_count: number;
+  source_count: number;
+  candidate_count: number;
+}
+
+export interface RealityAsOf {
+  entity_id: string;
+  known_at: string;
+  /** Records that had arrived by `known_at`. */
+  observations_known: number;
+  /**
+   * Records that exist now but had not arrived by then. When a past answer
+   * differs from today's and no source changed its mind, this is the reason.
+   */
+  observations_since: number;
+  attributes: HistoricalAttribute[];
+}
+
 export interface RealityState {
   id: string;
   entity_id: string;
@@ -200,6 +234,16 @@ export function createMapping(
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function fetchRealityAsOf(
+  entityId: string,
+  at: Date,
+): Promise<RealityAsOf> {
+  return apiFetch<RealityAsOf>(
+    `/api/entities/${entityId}/reality/as-of?at=${encodeURIComponent(at.toISOString())}`,
+    { cache: "no-store" },
+  );
 }
 
 export function listConflicts(

@@ -484,3 +484,163 @@ async def test_attribute_history_lists_the_values_a_source_stated(
     )
 
     assert history.distinct_values == (44, 43, 42)  # newest event first
+
+
+# ---------------------------------------------------------------------------
+# Reality as of a past moment
+#
+# The Timeline already answers "what was true then". This answers "what would
+# this system have told you then", which is a different question wherever a
+# source reported late.
+# ---------------------------------------------------------------------------
+
+
+async def test_a_past_answer_ignores_records_that_had_not_arrived(
+    db: AsyncSession,
+) -> None:
+    """The whole point: today's answer and Wednesday's answer differ.
+
+    Neither source changed its mind. One of them was simply slow, and asking
+    "what did we know on Wednesday" has to reflect that.
+    """
+    from app.services.reality import reality_as_of
+
+    organization, entity = await build_entity(db)
+    source, stream = await build_stream(db, organization, name="Warehouse")
+    await map_row(db, organization=organization, entity=entity, stream=stream, external_id="id=1")
+
+    await observe(
+        db,
+        organization=organization,
+        source=source,
+        stream=stream,
+        external_id="id=1",
+        payload={"quantity": 42},
+        event_time=MONDAY,
+        ingested_at=MONDAY,
+    )
+    # Describes Tuesday, but did not reach us until Friday.
+    await observe(
+        db,
+        organization=organization,
+        source=source,
+        stream=stream,
+        external_id="id=1",
+        payload={"quantity": 99},
+        event_time=TUESDAY,
+        ingested_at=FRIDAY,
+    )
+
+    wednesday = MONDAY + timedelta(days=2)
+    past = await reality_as_of(
+        db,
+        organization_id=organization.id,
+        entity_id=entity.id,
+        known_at=wednesday,
+    )
+
+    assert past.observations_known == 1
+    # And it says how many arrived afterwards, which is why the answer moved.
+    assert past.observations_since == 1
+
+    (quantity,) = [a for a in past.attributes if a.attribute == "quantity"]
+    assert quantity.value == 42
+    assert quantity.value_selected is True
+
+
+async def test_the_present_sees_everything_the_past_did_not(db: AsyncSession) -> None:
+    from app.services.reality import reality_as_of
+
+    organization, entity = await build_entity(db)
+    source, stream = await build_stream(db, organization, name="Warehouse")
+    await map_row(db, organization=organization, entity=entity, stream=stream, external_id="id=1")
+
+    for payload, event_time, ingested_at in (
+        ({"quantity": 42}, MONDAY, MONDAY),
+        ({"quantity": 99}, TUESDAY, FRIDAY),
+    ):
+        await observe(
+            db,
+            organization=organization,
+            source=source,
+            stream=stream,
+            external_id="id=1",
+            payload=payload,
+            event_time=event_time,
+            ingested_at=ingested_at,
+        )
+
+    now = FRIDAY + timedelta(days=1)
+    present = await reality_as_of(
+        db, organization_id=organization.id, entity_id=entity.id, known_at=now
+    )
+
+    assert present.observations_known == 2
+    assert present.observations_since == 0
+    (quantity,) = [a for a in present.attributes if a.attribute == "quantity"]
+    assert quantity.value == 99
+
+
+async def test_a_past_query_writes_nothing(db: AsyncSession) -> None:
+    """Persisting a time-travel result would overwrite the present with the past."""
+    from sqlalchemy import func, select
+
+    from app.models.reality_state import RealityState
+    from app.services.reality import reality_as_of
+
+    organization, entity = await build_entity(db)
+    source, stream = await build_stream(db, organization, name="Warehouse")
+    await map_row(db, organization=organization, entity=entity, stream=stream, external_id="id=1")
+    await observe(
+        db,
+        organization=organization,
+        source=source,
+        stream=stream,
+        external_id="id=1",
+        payload={"quantity": 42},
+        event_time=MONDAY,
+        ingested_at=MONDAY,
+    )
+
+    await reality_as_of(
+        db,
+        organization_id=organization.id,
+        entity_id=entity.id,
+        known_at=FRIDAY,
+    )
+
+    stored = await db.scalar(
+        select(func.count())
+        .select_from(RealityState)
+        .where(RealityState.organization_id == organization.id)
+    )
+    assert stored == 0
+
+
+async def test_a_past_query_cannot_reach_another_tenant(db: AsyncSession) -> None:
+    from app.services.reality import reality_as_of
+
+    _, mine = await build_entity(db)
+    other_org, theirs = await build_entity(db)
+    source, stream = await build_stream(db, other_org, name="Theirs")
+    await map_row(db, organization=other_org, entity=theirs, stream=stream, external_id="id=1")
+    await observe(
+        db,
+        organization=other_org,
+        source=source,
+        stream=stream,
+        external_id="id=1",
+        payload={"quantity": 42},
+        event_time=MONDAY,
+        ingested_at=MONDAY,
+    )
+
+    # My organization, their entity id: nothing.
+    leaked = await reality_as_of(
+        db,
+        organization_id=mine.organization_id,
+        entity_id=theirs.id,
+        known_at=FRIDAY,
+    )
+    assert leaked.attributes == ()
+    assert leaked.observations_known == 0
