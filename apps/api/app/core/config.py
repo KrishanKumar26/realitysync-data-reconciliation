@@ -125,6 +125,23 @@ class Settings(BaseSettings):
     )
     credential_encryption_key_version: int = 1
 
+    # --- Outbound mail ----------------------------------------------------
+    #
+    # Optional, and absent by default. With no key the reset link is written
+    # to the server log instead — usable for a self-hosted install, and the
+    # interface never claims an email was sent either way. Setting both of
+    # these switches delivery to Resend without changing anything else.
+    resend_api_key: str = ""
+    #: The From address. Must be on a domain verified with Resend, or Resend
+    #: refuses the send. Resend's own onboarding@resend.dev works for testing
+    #: and can only deliver to the account owner.
+    mail_from: str = ""
+
+    @property
+    def mail_configured(self) -> bool:
+        """Whether a real sender can be built from these settings."""
+        return bool(self.resend_api_key and self.mail_from)
+
     # --- Connector defaults ----------------------------------------------
     #: Applied to every outbound connection to a customer database, so an
     #: unreachable host fails in seconds rather than holding a worker.

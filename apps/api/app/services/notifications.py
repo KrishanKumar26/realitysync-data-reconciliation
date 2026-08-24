@@ -20,6 +20,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
+import httpx
+
+from app.core.config import Settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -59,6 +62,75 @@ class LogOnlyResetLinkSender:
                 "instead of being emailed. Configure one to deliver it."
             ),
         )
+
+
+class ResendResetLinkSender:
+    """Delivers through Resend's HTTP API.
+
+    Chosen over SMTP because it needs one credential and no long-lived
+    connection, which suits a container that may be asleep between requests.
+
+    A failure here is logged and swallowed. That is deliberate and it is the
+    uncomfortable choice: the caller's response must be identical whether or
+    not the address exists, so it cannot also depend on whether the send
+    worked — a 500 on delivery failure would say "this address is real" just
+    as loudly as an error message would. The operator finds out from the log,
+    which is where a delivery problem belongs.
+    """
+
+    #: Short. This runs inside a request, and a mail API having a bad day must
+    #: not hold the reset endpoint open.
+    TIMEOUT_SECONDS = 8.0
+
+    def __init__(self, *, api_key: str, sender: str) -> None:
+        self._api_key = api_key
+        self._sender = sender
+
+    @property
+    def describes_itself_as_delivered(self) -> bool:
+        return True
+
+    async def send(self, *, email: str, link: str) -> None:
+        payload = {
+            "from": self._sender,
+            "to": [email],
+            "subject": "Reset your RealitySync password",
+            "text": (
+                "Someone asked to reset the password for this RealitySync "
+                "account.\n\n"
+                f"{link}\n\n"
+                "The link works once and expires in one hour. If this was not "
+                "you, nothing has changed and you can ignore this message."
+            ),
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT_SECONDS) as client:
+                response = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=payload,
+                )
+            response.raise_for_status()
+        except Exception as exc:
+            # The link is *not* logged here. Falling back to the log on failure
+            # would quietly turn a misconfigured mail setup into a deployment
+            # that publishes reset links, which is worse than not sending.
+            logger.error(
+                "password_reset.send_failed",
+                error_type=type(exc).__name__,
+                detail="The reset link was not delivered. Check the mail configuration.",
+            )
+            return
+
+        logger.info("password_reset.link_sent")
+
+
+def build_reset_link_sender(settings: Settings) -> ResetLinkSender:
+    """The sender these settings describe."""
+    if settings.mail_configured:
+        return ResendResetLinkSender(api_key=settings.resend_api_key, sender=settings.mail_from)
+    return LogOnlyResetLinkSender()
 
 
 _sender: ResetLinkSender = LogOnlyResetLinkSender()

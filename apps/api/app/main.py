@@ -18,6 +18,7 @@ from app.middleware.errors import register_exception_handlers
 from app.middleware.origin import OriginValidationMiddleware
 from app.middleware.request_id import REQUEST_ID_HEADER, RequestIDMiddleware
 from app.services.credentials import validate_encryption_at_startup
+from app.services.notifications import build_reset_link_sender, set_reset_link_sender
 from app.services.rate_limit import configure_rate_limiting
 
 logger = get_logger(__name__)
@@ -50,6 +51,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         enabled=settings.rate_limiting_enabled,
         redis=get_redis() if settings.rate_limiting_enabled else None,
     )
+    # Outbound mail. Falls back to writing reset links to the log when no
+    # provider is configured, so this cannot fail at boot.
+    set_reset_link_sender(build_reset_link_sender(settings))
+    logger.info(
+        "mail.configured",
+        delivers_email=settings.mail_configured,
+        detail=(
+            None
+            if settings.mail_configured
+            else "No mail provider set; password reset links go to this log."
+        ),
+    )
+
     # Background syncing. Started last, so it never runs against a process
     # whose encryption or rate limiting failed to configure.
     scheduler = start_scheduler(settings)

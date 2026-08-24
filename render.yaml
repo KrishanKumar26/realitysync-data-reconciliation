@@ -142,6 +142,25 @@ services:
       - key: CONNECTOR_ALLOW_PRIVATE_HOSTS
         value: "false"
 
+      # Outbound mail — OPTIONAL, and absent by default.
+      #
+      # Without these, password reset still works but the link is written to
+      # this service's log instead of being emailed, and /api/system/status
+      # reports email as "degraded" so the gap is visible rather than assumed.
+      # Nothing in the interface ever claims a message was sent.
+      #
+      # To turn on delivery: create a Resend account, verify a domain, and set
+      # both. Resend's own onboarding@resend.dev works for testing but can
+      # only deliver to the address that owns the Resend account.
+      #
+      #   RESEND_API_KEY   re_...
+      #   MAIL_FROM        RealitySync <no-reply@your-domain.com>
+      #
+      # - key: RESEND_API_KEY
+      #   sync: false
+      # - key: MAIL_FROM
+      #   sync: false
+
       - key: CONNECTOR_CONNECT_TIMEOUT_SECONDS
         value: "10"
       - key: CONNECTOR_STATEMENT_TIMEOUT_SECONDS

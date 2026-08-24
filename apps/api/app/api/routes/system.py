@@ -105,6 +105,26 @@ async def system_status(
             )
         )
 
+    # --- Outbound mail ---
+    # "degraded", not "operational": password reset works, but the link only
+    # reaches the server log, so an operator has to hand it over. Reporting
+    # that as healthy would hide a setup step from the person responsible for
+    # it — and the API deliberately tells the *requester* nothing either way.
+    components.append(
+        ComponentStatus(
+            name="email",
+            state="operational" if settings.mail_configured else "degraded",
+            detail=(
+                "Password reset links are emailed."
+                if settings.mail_configured
+                else (
+                    "No mail provider configured. Password reset links are "
+                    "written to the server log instead of being sent."
+                )
+            ),
+        )
+    )
+
     # --- Sync scheduler ---
     # Not authoritative: if it never runs, nothing is wrong and no observation
     # is lost — sources are simply staler than configured, and manual sync
